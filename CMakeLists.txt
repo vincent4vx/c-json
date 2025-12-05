@@ -5,4 +5,5 @@ set(CMAKE_C_STANDARD 23)
 
 add_executable(json main.c
         parser/parser.h
-        parser/parser.c)
+        parser/parser.c
+        type/types.h)
