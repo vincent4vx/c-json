@@ -1,4 +1,4 @@
-#include "stream_parser.h"
+#include "parser.h"
 
 #include <stdio.h>
 
@@ -12,36 +12,36 @@ typedef struct {
     size_t position;
 } json_stream_parser_state_t;
 
-json_stream_result_t json_create_success_result() {
-    return (json_stream_result_t) {
+json_parser_result_t json_create_success_result() {
+    return (json_parser_result_t) {
         .result = JSON_PARSE_SUCCESS,
         .message = {0},
     };
 }
 
-json_stream_result_t json_create_error_result(const json_parse_result_t result, const char* message) {
+json_parser_result_t json_create_error_result(const json_parse_code_t result, const char* message) {
     if (result < 0 || result > JSON_PARSE_CONFIG_ERROR) {
-        json_stream_result_t result_out = { .result = JSON_PARSE_CONFIG_ERROR };
+        json_parser_result_t result_out = { .result = JSON_PARSE_CONFIG_ERROR };
         snprintf(result_out.message, JSON_ERROR_MESSAGE_SIZE, "Unknown error code: %d", result);
 
         return result_out;
     }
 
-    json_stream_result_t result_out = { .result = result };
+    json_parser_result_t result_out = { .result = result };
     snprintf(result_out.message, JSON_ERROR_MESSAGE_SIZE, "%s", message);
 
     return result_out;
 }
 
-static json_stream_result_t json_parse_value(json_stream_parser_state_t* state, size_t depth);
-static json_stream_result_t json_parse_string(json_stream_parser_state_t* state, size_t depth);
-static json_stream_result_t json_parse_object(json_stream_parser_state_t* state, size_t depth);
-static json_stream_result_t json_parse_array(json_stream_parser_state_t* state, size_t depth);
-static json_stream_result_t json_parse_number(json_stream_parser_state_t* state, size_t depth);
-static json_stream_result_t json_parse_boolean(json_stream_parser_state_t* state, bool expected_value, size_t depth);
-static json_stream_result_t json_parse_null(json_stream_parser_state_t* state, size_t depth);
+static json_parser_result_t json_parse_value(json_stream_parser_state_t* state, size_t depth);
+static json_parser_result_t json_parse_string(json_stream_parser_state_t* state, size_t depth);
+static json_parser_result_t json_parse_object(json_stream_parser_state_t* state, size_t depth);
+static json_parser_result_t json_parse_array(json_stream_parser_state_t* state, size_t depth);
+static json_parser_result_t json_parse_number(json_stream_parser_state_t* state, size_t depth);
+static json_parser_result_t json_parse_boolean(json_stream_parser_state_t* state, bool expected_value, size_t depth);
+static json_parser_result_t json_parse_null(json_stream_parser_state_t* state, size_t depth);
 
-json_stream_result_t json_stream_parse(const char* json, size_t length, json_stream_handler_t* handler, const size_t max_depth, const size_t max_string_size, const size_t max_struct_size) {
+json_parser_result_t json_parse(const char* json, size_t length, json_stream_handler_t* handler, const size_t max_depth, const size_t max_string_size, const size_t max_struct_size) {
     if (json == nullptr || length == 0 || handler == nullptr) {
         return json_create_error_result(JSON_PARSE_CONFIG_ERROR, "Invalid configuration: null pointer or zero length");
     }
@@ -82,7 +82,7 @@ static bool skip_whitespace(json_stream_parser_state_t* state) {
     return state->position < state->length;
 }
 
-static json_stream_result_t json_parse_value_inner_switch(json_stream_parser_state_t* state, const char current_char, const size_t depth) {
+static json_parser_result_t json_parse_value_inner_switch(json_stream_parser_state_t* state, const char current_char, const size_t depth) {
     switch (current_char) {
         case 'n':
             return json_parse_null(state, depth + 1);
@@ -115,13 +115,13 @@ static json_stream_result_t json_parse_value_inner_switch(json_stream_parser_sta
             return json_parse_array(state, depth + 1);
 
         default:
-            json_stream_result_t result = { .result = JSON_PARSE_ERROR_INVALID_SYNTAX };
+            json_parser_result_t result = { .result = JSON_PARSE_ERROR_INVALID_SYNTAX };
             snprintf(result.message, JSON_ERROR_MESSAGE_SIZE, "Syntax error: unexpected character '%c' at position %zu", current_char, state->position);
             return result;
     }
 }
 
-static json_stream_result_t json_parse_value(json_stream_parser_state_t* state, const size_t depth) {
+static json_parser_result_t json_parse_value(json_stream_parser_state_t* state, const size_t depth) {
     if (state == nullptr) {
         return json_create_error_result(JSON_PARSE_CONFIG_ERROR, "Internal error: null parser state");
     }
@@ -136,10 +136,10 @@ static json_stream_result_t json_parse_value(json_stream_parser_state_t* state, 
 
     const size_t position = state->position;
     const char current_char = state->json[position];
-    const json_stream_result_t result = json_parse_value_inner_switch(state, current_char, depth);
+    const json_parser_result_t result = json_parse_value_inner_switch(state, current_char, depth);
 
     if (result.result < 0 || result.result > JSON_PARSE_CONFIG_ERROR) {
-        json_stream_result_t result_out = { .result = JSON_PARSE_CONFIG_ERROR };
+        json_parser_result_t result_out = { .result = JSON_PARSE_CONFIG_ERROR };
         snprintf(result_out.message, JSON_ERROR_MESSAGE_SIZE, "Unknown error code: %d", result.result);
 
         return result_out;
@@ -156,7 +156,7 @@ static json_stream_result_t json_parse_value(json_stream_parser_state_t* state, 
     return result;
 }
 
-static json_stream_result_t json_parse_constant(json_stream_parser_state_t* state, const char* expected_value, const size_t expected_value_length, const size_t depth) {
+static json_parser_result_t json_parse_constant(json_stream_parser_state_t* state, const char* expected_value, const size_t expected_value_length, const size_t depth) {
     if (state == nullptr) {
         return json_create_error_result(JSON_PARSE_CONFIG_ERROR, "Internal error: null parser state");
     }
@@ -177,7 +177,7 @@ static json_stream_result_t json_parse_constant(json_stream_parser_state_t* stat
         const char current_char = state->json[state->position + i];
 
         if (current_char != expected_value[i]) {
-            json_stream_result_t result = { .result = JSON_PARSE_ERROR_INVALID_SYNTAX };
+            json_parser_result_t result = { .result = JSON_PARSE_ERROR_INVALID_SYNTAX };
             snprintf(result.message, JSON_ERROR_MESSAGE_SIZE, "Syntax error: expected '%s' but get '%c' at position %zu", expected_value, current_char, state->position + i);
             return result;
         }
@@ -187,8 +187,8 @@ static json_stream_result_t json_parse_constant(json_stream_parser_state_t* stat
     return json_create_success_result();
 }
 
-static json_stream_result_t json_parse_null(json_stream_parser_state_t* state, const size_t depth) {
-    const json_stream_result_t result = json_parse_constant(state, "null", 4, depth);
+static json_parser_result_t json_parse_null(json_stream_parser_state_t* state, const size_t depth) {
+    const json_parser_result_t result = json_parse_constant(state, "null", 4, depth);
 
     if (
         result.result != JSON_PARSE_SUCCESS
@@ -200,8 +200,8 @@ static json_stream_result_t json_parse_null(json_stream_parser_state_t* state, c
     return state->handler->on_null(state->handler);
 }
 
-static json_stream_result_t json_parse_boolean(json_stream_parser_state_t* state, const bool expected_value, const size_t depth) {
-    const json_stream_result_t result = expected_value == true
+static json_parser_result_t json_parse_boolean(json_stream_parser_state_t* state, const bool expected_value, const size_t depth) {
+    const json_parser_result_t result = expected_value == true
         ? json_parse_constant(state, "true", 4, depth)
         : json_parse_constant(state, "false", 5, depth)
     ;
@@ -216,7 +216,7 @@ static json_stream_result_t json_parse_boolean(json_stream_parser_state_t* state
     return state->handler->on_bool(state->handler, expected_value);
 }
 
-static json_stream_result_t json_parse_number(json_stream_parser_state_t* state, const size_t depth) {
+static json_parser_result_t json_parse_number(json_stream_parser_state_t* state, const size_t depth) {
     if (state == nullptr) {
         return json_create_error_result(JSON_PARSE_CONFIG_ERROR, "Internal error: null parser state");
     }
@@ -285,7 +285,7 @@ static json_stream_result_t json_parse_number(json_stream_parser_state_t* state,
     return state->handler->on_number(state->handler, number_value);
 }
 
-static json_stream_result_t json_parse_string_internal(json_stream_parser_state_t* state, const size_t depth, const bool is_property_key) {
+static json_parser_result_t json_parse_string_internal(json_stream_parser_state_t* state, const size_t depth, const bool is_property_key) {
     if (state == nullptr) {
         return json_create_error_result(JSON_PARSE_CONFIG_ERROR, "Internal error: null parser state");
     }
@@ -337,7 +337,7 @@ static json_stream_result_t json_parse_string_internal(json_stream_parser_state_
     // Move to the next character after the closing quote
     ++state->position;
 
-    json_stream_result_t (*string_handler)(json_stream_handler_t*, json_raw_string_t) = is_property_key
+    json_parser_result_t (*string_handler)(json_stream_handler_t*, json_raw_string_t) = is_property_key
         ? state->handler->on_object_property
         : state->handler->on_string
     ;
@@ -355,11 +355,11 @@ static json_stream_result_t json_parse_string_internal(json_stream_parser_state_
     return string_handler(state->handler, raw_string);
 }
 
-static json_stream_result_t json_parse_string(json_stream_parser_state_t* state, const size_t depth) {
+static json_parser_result_t json_parse_string(json_stream_parser_state_t* state, const size_t depth) {
     return json_parse_string_internal(state, depth, false);
 }
 
-static json_stream_result_t json_parse_object(json_stream_parser_state_t* state, const size_t depth) {
+static json_parser_result_t json_parse_object(json_stream_parser_state_t* state, const size_t depth) {
     if (state == nullptr) {
         return json_create_error_result(JSON_PARSE_CONFIG_ERROR, "Internal error: null parser state");
     }
@@ -380,7 +380,7 @@ static json_stream_result_t json_parse_object(json_stream_parser_state_t* state,
     ++state->position;
 
     if (state->handler->on_start_object != nullptr) {
-        const json_stream_result_t start_array_result = state->handler->on_start_object(state->handler);
+        const json_parser_result_t start_array_result = state->handler->on_start_object(state->handler);
 
         if (start_array_result.result != JSON_PARSE_SUCCESS) {
             return start_array_result;
@@ -423,7 +423,7 @@ static json_stream_result_t json_parse_object(json_stream_parser_state_t* state,
 
         property_expected = false;
 
-        const json_stream_result_t key_result = json_parse_string_internal(state, depth + 1, true);
+        const json_parser_result_t key_result = json_parse_string_internal(state, depth + 1, true);
         if (key_result.result != JSON_PARSE_SUCCESS) {
             return key_result;
         }
@@ -438,7 +438,7 @@ static json_stream_result_t json_parse_object(json_stream_parser_state_t* state,
 
         ++state->position;
 
-        const json_stream_result_t value_result = json_parse_value(state, depth + 1);
+        const json_parser_result_t value_result = json_parse_value(state, depth + 1);
         if (value_result.result != JSON_PARSE_SUCCESS) {
             return value_result;
         }
@@ -455,7 +455,7 @@ static json_stream_result_t json_parse_object(json_stream_parser_state_t* state,
     return state->handler->on_end_array(state->handler);
 }
 
-static json_stream_result_t json_parse_array(json_stream_parser_state_t* state, const size_t depth) {
+static json_parser_result_t json_parse_array(json_stream_parser_state_t* state, const size_t depth) {
     if (state == nullptr) {
         return json_create_error_result(JSON_PARSE_CONFIG_ERROR, "Internal error: null parser state");
     }
@@ -476,7 +476,7 @@ static json_stream_result_t json_parse_array(json_stream_parser_state_t* state, 
     ++state->position;
 
     if (state->handler->on_start_array != nullptr) {
-        const json_stream_result_t start_array_result = state->handler->on_start_array(state->handler);
+        const json_parser_result_t start_array_result = state->handler->on_start_array(state->handler);
 
         if (start_array_result.result != JSON_PARSE_SUCCESS) {
             return start_array_result;
@@ -517,7 +517,7 @@ static json_stream_result_t json_parse_array(json_stream_parser_state_t* state, 
             return json_create_error_result(JSON_PARSE_ERROR_INVALID_SYNTAX, "Syntax error: expected ',' between array values");
         }
 
-        const json_stream_result_t value_result = json_parse_value(state, depth + 1);
+        const json_parser_result_t value_result = json_parse_value(state, depth + 1);
         value_expected = false;
 
         if (value_result.result != JSON_PARSE_SUCCESS) {
