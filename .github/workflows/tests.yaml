@@ -1,0 +1,26 @@
+on:
+    push:
+        branches:
+            - master
+    pull_request:
+        branches:
+            - master
+
+jobs:
+    build-project:
+        name: Build Project
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout Project
+              uses: actions/checkout@v4.2.2
+
+            - name: Build Project
+              run: |
+                cmake -S. -Bbuild
+                cd build
+                cmake --build .
+
+            - name: Run Tests
+              run: |
+                cd build
+                ctest --output-on-failure

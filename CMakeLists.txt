@@ -23,3 +23,6 @@ add_executable(tests tests/tests.c
         tests/parser_tests.c)
 target_include_directories(tests PRIVATE tests)
 target_link_libraries(tests PRIVATE json)
+
+enable_testing()
+add_test(NAME tests COMMAND tests)
