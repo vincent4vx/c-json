@@ -5,7 +5,7 @@
 typedef struct {
     const char* json;
     const size_t length;
-    json_stream_handler_t* handler;
+    json_parser_handler_t* handler;
     const size_t max_depth;
     const size_t max_string_size;
     const size_t max_struct_size;
@@ -41,7 +41,7 @@ static json_parser_result_t json_parse_number(json_stream_parser_state_t* state,
 static json_parser_result_t json_parse_boolean(json_stream_parser_state_t* state, bool expected_value, size_t depth);
 static json_parser_result_t json_parse_null(json_stream_parser_state_t* state, size_t depth);
 
-json_parser_result_t json_parse(const char* json, size_t length, json_stream_handler_t* handler, const size_t max_depth, const size_t max_string_size, const size_t max_struct_size) {
+json_parser_result_t json_parse(const char* json, size_t length, json_parser_handler_t* handler, const size_t max_depth, const size_t max_string_size, const size_t max_struct_size) {
     if (json == nullptr || length == 0 || handler == nullptr) {
         return json_create_error_result(JSON_PARSE_CONFIG_ERROR, "Invalid configuration: null pointer or zero length");
     }
@@ -337,7 +337,7 @@ static json_parser_result_t json_parse_string_internal(json_stream_parser_state_
     // Move to the next character after the closing quote
     ++state->position;
 
-    json_parser_result_t (*string_handler)(json_stream_handler_t*, json_raw_string_t) = is_property_key
+    json_parser_result_t (*string_handler)(json_parser_handler_t*, json_raw_string_t) = is_property_key
         ? state->handler->on_object_property
         : state->handler->on_string
     ;
@@ -379,8 +379,8 @@ static json_parser_result_t json_parse_object(json_stream_parser_state_t* state,
     // Skip the opening bracket
     ++state->position;
 
-    if (state->handler->on_start_object != nullptr) {
-        const json_parser_result_t start_array_result = state->handler->on_start_object(state->handler);
+    if (state->handler->on_object_start != nullptr) {
+        const json_parser_result_t start_array_result = state->handler->on_object_start(state->handler);
 
         if (start_array_result.result != JSON_PARSE_SUCCESS) {
             return start_array_result;
@@ -448,11 +448,11 @@ static json_parser_result_t json_parse_object(json_stream_parser_state_t* state,
         return json_create_error_result(JSON_PARSE_ERROR_UNEXPECTED_END, "Unexpected end of JSON input while parsing object");
     }
 
-    if (state->handler->on_end_array == nullptr) {
+    if (state->handler->on_array_end == nullptr) {
         return json_create_success_result();
     }
 
-    return state->handler->on_end_array(state->handler);
+    return state->handler->on_array_end(state->handler);
 }
 
 static json_parser_result_t json_parse_array(json_stream_parser_state_t* state, const size_t depth) {
@@ -475,8 +475,8 @@ static json_parser_result_t json_parse_array(json_stream_parser_state_t* state, 
     // Skip the opening bracket
     ++state->position;
 
-    if (state->handler->on_start_array != nullptr) {
-        const json_parser_result_t start_array_result = state->handler->on_start_array(state->handler);
+    if (state->handler->on_array_start != nullptr) {
+        const json_parser_result_t start_array_result = state->handler->on_array_start(state->handler);
 
         if (start_array_result.result != JSON_PARSE_SUCCESS) {
             return start_array_result;
@@ -529,9 +529,9 @@ static json_parser_result_t json_parse_array(json_stream_parser_state_t* state, 
         return json_create_error_result(JSON_PARSE_ERROR_UNEXPECTED_END, "Unexpected end of JSON input while parsing array");
     }
 
-    if (state->handler->on_end_array == nullptr) {
+    if (state->handler->on_array_end == nullptr) {
         return json_create_success_result();
     }
 
-    return state->handler->on_end_array(state->handler);
+    return state->handler->on_array_end(state->handler);
 }

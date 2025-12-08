@@ -70,15 +70,15 @@ typedef struct json_stream_handler_t {
     json_parser_result_t (*on_bool)(struct json_stream_handler_t* self, bool value);
     json_parser_result_t (*on_number)(struct json_stream_handler_t* self, double value);
     json_parser_result_t (*on_string)(struct json_stream_handler_t* self, json_raw_string_t value);
-    json_parser_result_t (*on_start_array)(struct json_stream_handler_t* self);
-    json_parser_result_t (*on_end_array)(struct json_stream_handler_t* self);
-    json_parser_result_t (*on_start_object)(struct json_stream_handler_t* self);
+    json_parser_result_t (*on_array_start)(struct json_stream_handler_t* self);
+    json_parser_result_t (*on_array_end)(struct json_stream_handler_t* self);
+    json_parser_result_t (*on_object_start)(struct json_stream_handler_t* self);
     json_parser_result_t (*on_object_property)(struct json_stream_handler_t* self, json_raw_string_t key);
-    json_parser_result_t (*on_end_object)(struct json_stream_handler_t* self);
-} json_stream_handler_t;
+    json_parser_result_t (*on_object_end)(struct json_stream_handler_t* self);
+} json_parser_handler_t;
 
 json_parser_result_t json_create_success_result();
 json_parser_result_t json_create_error_result(json_parse_code_t result, const char* message);
-json_parser_result_t json_parse(const char* json, size_t length, json_stream_handler_t* handler, size_t max_depth, size_t max_string_size, size_t max_struct_size);
+json_parser_result_t json_parse(const char* json, size_t length, json_parser_handler_t* handler, size_t max_depth, size_t max_string_size, size_t max_struct_size);
 
 #endif //JSON_PARSER_H

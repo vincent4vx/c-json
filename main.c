@@ -1,57 +1,53 @@
 #include <stdio.h>
-#include "parser/parser.h"
+#include <stdlib.h>
+#include <string.h>
 
-json_parser_result_t my_on_bool(json_stream_handler_t* self, bool value) {
-    printf("Got boolean: %s\n", value ? "true" : "false");
-    return json_create_success_result();
+#include "formater/formater.h"
+#include "parser/value_parser.h"
+#include "type/types.h"
+
+json_value_t* json_parse_cstr(char* cstr, json_arena_t* arena) {
+    json_value_parser_result_t result = json_parse_value(cstr, strlen(cstr), arena, 32, 1024, 1024);
+
+    if (result.result.result != JSON_PARSE_SUCCESS) {
+        printf("Error parsing JSON: %s\n", result.result.message);
+    }
+
+    return result.value;
 }
 
-json_parser_result_t my_on_number(json_stream_handler_t* self, double value) {
-    printf("Got number: %f\n", value);
-    return json_create_success_result();
-}
+void json_print(json_value_t* value) {
+    char buffer[512] = {0};
 
-json_parser_result_t my_on_null(json_stream_handler_t* self) {
-    printf("Got null\n");
-    return json_create_success_result();
-}
+    if (value == nullptr) {
+        printf("Error: Null value\n");
+        return;
+    }
 
-json_parser_result_t my_on_string(json_stream_handler_t* self, json_raw_string_t value) {
-    printf("Got string: %.*s\n", (int) value.length, value.value);
-    return json_create_success_result();
-}
+    json_formater_result_t result = json_format_value(value, buffer, 512);
 
-json_parser_result_t my_on_object_property(json_stream_handler_t* self, json_raw_string_t value) {
-    printf("Got property: %.*s\n", (int) value.length, value.value);
-    return json_create_success_result();
-}
-
-void handle_json_result(json_parser_result_t result) {
-    if (result.result != JSON_PARSE_SUCCESS) {
-        printf("JSON Error: %s\n", result.message);
+    if (result.code == JSON_FORMATER_SUCCESS) {
+        printf("Formatted JSON: %*s\n", (int) result.result.length, result.result.buffer);
+    } else {
+        printf("Error formatting JSON: %s\n", result.error.message);
     }
 }
 
 int main(void) {
-    printf("Hello, World!\n");
+    const size_t string_pool_size = 1000000;
+    const size_t value_pool_size = 1000;
+    const size_t key_pool_size = 1000;
+    const size_t arena_size = json_arena_size(string_pool_size, value_pool_size, key_pool_size);
+    json_arena_t* arena = malloc(arena_size);
+    json_arena_init(arena, arena_size, string_pool_size, value_pool_size, key_pool_size);
 
-    json_stream_handler_t handler = {
-        .on_bool = my_on_bool,
-        .on_number = my_on_number,
-        .on_null = my_on_null,
-        .on_string = my_on_string,
-        .on_object_property = my_on_object_property,
-    };
-
-    handle_json_result(json_parse("true", 4, &handler, 32, 1024, 1024));
-    handle_json_result(json_parse("false", 5, &handler, 32, 1024, 1024));
-    handle_json_result(json_parse("42", 2, &handler, 32, 1024, 1024));
-    handle_json_result(json_parse("123.456789", 10, &handler, 32, 1024, 1024));
-    handle_json_result(json_parse("null", 4, &handler, 32, 1024, 1024));
-    handle_json_result(json_parse("\"Hello, World!\"", 15, &handler, 32, 1024, 1024));
-    handle_json_result(json_parse("[12, 85, null, true, 12.36]", 27, &handler, 32, 1024, 1024));
-    handle_json_result(json_parse("[    12       ,    \"foo\"     ,    ]", 35, &handler, 32, 1024, 1024));
-    handle_json_result(json_parse("{\"key\": 42,     \"bar\"   :   true    }", 37, &handler, 32, 1024, 1024));
+    json_print(json_parse_cstr("123.456", arena));
+    json_print(json_parse_cstr("true", arena));
+    json_print(json_parse_cstr("false", arena));
+    json_print(json_parse_cstr("null", arena));
+    json_print(json_parse_cstr("\"Hello, World!\"", arena));
+    json_print(json_parse_cstr("[1, 2, 3]", arena));
+    json_print(json_parse_cstr("{\"foo\": 456, \"bar\": [true, null, \"abcd\n\"]}", arena));
 
     return 0;
 }
