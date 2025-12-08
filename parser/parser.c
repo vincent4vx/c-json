@@ -93,6 +93,7 @@ static json_parser_result_t json_parse_value_inner_switch(json_stream_parser_sta
         case 'f':
             return json_parse_boolean(state, false, depth + 1);
 
+        case '-':
         case '0':
         case '1':
         case '2':
@@ -143,6 +144,10 @@ static json_parser_result_t json_parse_value(json_stream_parser_state_t* state, 
         snprintf(result_out.message, JSON_ERROR_MESSAGE_SIZE, "Unknown error code: %d", result.result);
 
         return result_out;
+    }
+
+    if (result.result != JSON_PARSE_SUCCESS) {
+        return result;
     }
 
     if (state->position <= position) {
@@ -448,11 +453,11 @@ static json_parser_result_t json_parse_object(json_stream_parser_state_t* state,
         return json_create_error_result(JSON_PARSE_ERROR_UNEXPECTED_END, "Unexpected end of JSON input while parsing object");
     }
 
-    if (state->handler->on_array_end == nullptr) {
+    if (state->handler->on_object_end == nullptr) {
         return json_create_success_result();
     }
 
-    return state->handler->on_array_end(state->handler);
+    return state->handler->on_object_end(state->handler);
 }
 
 static json_parser_result_t json_parse_array(json_stream_parser_state_t* state, const size_t depth) {
