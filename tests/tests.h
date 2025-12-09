@@ -52,6 +52,17 @@
         } \
     } while (0)
 
+#define ASSERT_CHAR(expected, actual) \
+    do { \
+        const char expected_char = (char)(expected); \
+        const char actual_char = (char)(actual); \
+        if (expected != actual) { \
+            fprintf(stderr, "[FAIL] Assertion failed: expected %c, but get %c, function %s, file %s, line %d.\n", expected_char, actual_char, __func__, __FILE__, __LINE__); \
+            *success = false; \
+            return; \
+        } \
+    } while (0)
+
 #define ASSERT_DOUBLE(expected, actual, delta) \
     do { \
         const double expected_double = (double)(expected); \

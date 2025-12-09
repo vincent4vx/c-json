@@ -14,6 +14,6 @@ typedef struct {
     json_value_t* value;
 } json_value_parser_result_t;
 
-json_value_parser_result_t json_parse_value(const char* json, size_t length, json_arena_t* arena, size_t max_depth, size_t max_string_size, size_t max_struct_size);
+json_value_parser_result_t json_parse_value(const char* json, size_t length, json_arena_t* arena, json_parser_options_t options);
 
 #endif //JSON_VALUE_PARSER_H

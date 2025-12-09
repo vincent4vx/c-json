@@ -9,7 +9,7 @@
 json_value_t* json_parse_cstr(char* cstr, json_arena_t* arena) {
     json_value_parser_result_t result = json_parse_value(cstr, strlen(cstr), arena, 32, 1024, 1024);
 
-    if (result.result.result != JSON_PARSE_SUCCESS) {
+    if (result.result.code != JSON_PARSE_SUCCESS) {
         printf("Error parsing JSON: %s\n", result.result.message);
     }
 

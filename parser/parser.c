@@ -13,24 +13,7 @@ typedef struct {
 } json_stream_parser_state_t;
 
 json_parser_result_t json_create_success_result() {
-    return (json_parser_result_t) {
-        .result = JSON_PARSE_SUCCESS,
-        .message = {0},
-    };
-}
-
-json_parser_result_t json_create_error_result(const json_parse_code_t result, const char* message) {
-    if (result < 0 || result > JSON_PARSE_CONFIG_ERROR) {
-        json_parser_result_t result_out = { .result = JSON_PARSE_CONFIG_ERROR };
-        snprintf(result_out.message, JSON_ERROR_MESSAGE_SIZE, "Unknown error code: %d", result);
-
-        return result_out;
-    }
-
-    json_parser_result_t result_out = { .result = result };
-    snprintf(result_out.message, JSON_ERROR_MESSAGE_SIZE, "%s", message);
-
-    return result_out;
+    return (json_parser_result_t) { .code = JSON_PARSE_SUCCESS };
 }
 
 static json_parser_result_t json_parse_value(json_stream_parser_state_t* state, size_t depth);
@@ -41,29 +24,44 @@ static json_parser_result_t json_parse_number(json_stream_parser_state_t* state,
 static json_parser_result_t json_parse_boolean(json_stream_parser_state_t* state, bool expected_value, size_t depth);
 static json_parser_result_t json_parse_null(json_stream_parser_state_t* state, size_t depth);
 
-json_parser_result_t json_parse(const char* json, size_t length, json_parser_handler_t* handler, const size_t max_depth, const size_t max_string_size, const size_t max_struct_size) {
+json_parser_options_t json_default_parser_options(const json_parser_options_t options) {
+    return (json_parser_options_t) {
+        .max_depth = options.max_depth == 0 ? JSON_DEFAULT_MAX_DEPTH : options.max_depth,
+        .max_string_size = options.max_string_size == 0 ? JSON_DEFAULT_MAX_STRING_SIZE : options.max_string_size,
+        .max_struct_size = options.max_struct_size == 0 ? JSON_DEFAULT_MAX_STRUCT_SIZE : options.max_struct_size,
+    };
+}
+
+json_parser_result_t json_parse(const char* json, const size_t length, json_parser_handler_t* handler, json_parser_options_t options) {
+    options = json_default_parser_options(options);
+
     if (json == nullptr || length == 0 || handler == nullptr) {
-        return json_create_error_result(JSON_PARSE_CONFIG_ERROR, "Invalid configuration: null pointer or zero length");
+        return (json_parser_result_t) { JSON_PARSE_CONFIG_ERROR, JSON_CONTEXT_UNKNOWN, JSON_ERROR_NULL_POINTER, 0, 0 };
     }
 
-    if (max_depth < 1 || max_depth > 1000000) {
-        return json_create_error_result(JSON_PARSE_CONFIG_ERROR, "Invalid configuration: max_depth parameter out of bounds");
+    if (options.max_depth > 1000000) {
+        return (json_parser_result_t) { JSON_PARSE_CONFIG_ERROR, JSON_CONTEXT_UNKNOWN, JSON_ERROR_INVALID_MAX_DEPTH, 0, 0 };
     }
 
-    if (max_string_size < 1 || max_struct_size < 1) {
-        return json_create_error_result(JSON_PARSE_CONFIG_ERROR, "Invalid configuration: max_string_size and max_struct_size parameters must be greater than zero");
+    if (options.max_string_size > 1000000000) {
+        return (json_parser_result_t) { JSON_PARSE_CONFIG_ERROR, JSON_CONTEXT_UNKNOWN, JSON_ERROR_INVALID_MAX_STRING_SIZE, 0, 0 };
+    }
+
+    if (options.max_struct_size > 1000000000) {
+        return (json_parser_result_t) { JSON_PARSE_CONFIG_ERROR, JSON_CONTEXT_UNKNOWN, JSON_ERROR_INVALID_MAX_STRUCT_SIZE, 0, 0 };
     }
 
     json_stream_parser_state_t state = {
         .json = json,
         .length = length,
         .handler = handler,
-        .max_depth = max_depth,
-        .max_string_size = max_string_size,
-        .max_struct_size = max_struct_size,
+        .max_depth = options.max_depth,
+        .max_string_size = options.max_string_size,
+        .max_struct_size = options.max_struct_size,
         .position = 0,
     };
 
+    // @todo set position if not already set
     return json_parse_value(&state, 0);
 }
 
@@ -116,75 +114,86 @@ static json_parser_result_t json_parse_value_inner_switch(json_stream_parser_sta
             return json_parse_array(state, depth + 1);
 
         default:
-            json_parser_result_t result = { .result = JSON_PARSE_ERROR_INVALID_SYNTAX };
-            snprintf(result.message, JSON_ERROR_MESSAGE_SIZE, "Syntax error: unexpected character '%c' at position %zu", current_char, state->position);
-            return result;
+            return (json_parser_result_t) {
+                .code = JSON_PARSE_ERROR_INVALID_SYNTAX,
+                .context = JSON_CONTEXT_UNKNOWN,
+                .error = JSON_ERROR_UNEXPECTED_CHARACTER,
+                .extra = 0,
+                .position = state->position,
+            };
     }
 }
 
 static json_parser_result_t json_parse_value(json_stream_parser_state_t* state, const size_t depth) {
     if (state == nullptr) {
-        return json_create_error_result(JSON_PARSE_CONFIG_ERROR, "Internal error: null parser state");
+        return (json_parser_result_t) { JSON_PARSE_CONFIG_ERROR, JSON_CONTEXT_UNKNOWN, JSON_ERROR_NULL_POINTER, 0, state->position };
     }
 
     if (depth > state->max_depth) {
-        return json_create_error_result(JSON_PARSE_ERROR_MAX_DEPTH, "Maximum parsing depth exceeded");
+        return (json_parser_result_t) { JSON_PARSE_ERROR_MAX_DEPTH, JSON_CONTEXT_UNKNOWN, JSON_ERROR_UNKNOWN, 0, state->position };
     }
 
     if (!skip_whitespace(state)) {
-        return json_create_error_result(JSON_PARSE_ERROR_UNEXPECTED_END, "Unexpected end of JSON input");
+        return (json_parser_result_t) { JSON_PARSE_ERROR_UNEXPECTED_END, JSON_CONTEXT_UNKNOWN, JSON_ERROR_EMPTY_VALUE, 0, state->position };
     }
 
     const size_t position = state->position;
     const char current_char = state->json[position];
     const json_parser_result_t result = json_parse_value_inner_switch(state, current_char, depth);
 
-    if (result.result < 0 || result.result > JSON_PARSE_CONFIG_ERROR) {
-        json_parser_result_t result_out = { .result = JSON_PARSE_CONFIG_ERROR };
-        snprintf(result_out.message, JSON_ERROR_MESSAGE_SIZE, "Unknown error code: %d", result.result);
-
-        return result_out;
+    if (result.code < 0 || result.code > JSON_PARSE_CONFIG_ERROR) {
+        return (json_parser_result_t) {
+            .code = JSON_PARSE_CONFIG_ERROR,
+            .context = JSON_CONTEXT_UNKNOWN,
+            .error = JSON_ERROR_INVALID_CODE,
+            .extra = result.code,
+            .position = state->position,
+        };
     }
 
-    if (result.result != JSON_PARSE_SUCCESS) {
+    if (result.code != JSON_PARSE_SUCCESS) {
         return result;
     }
 
     if (state->position <= position) {
-        return json_create_error_result(JSON_PARSE_CONFIG_ERROR, "Parser did not advance position");
+        return (json_parser_result_t) { JSON_PARSE_CONFIG_ERROR, JSON_CONTEXT_UNKNOWN, JSON_ERROR_CURSOR_NOT_ADVANCE, 0, state->position };
     }
 
     if (state->position > state->length) {
-        return json_create_error_result(JSON_PARSE_CONFIG_ERROR, "Parser position exceeded input length");
+        return (json_parser_result_t) { JSON_PARSE_CONFIG_ERROR, JSON_CONTEXT_UNKNOWN, JSON_ERROR_CURSOR_EXCEED_INPUT, 0, state->position };
     }
 
     return result;
 }
 
-static json_parser_result_t json_parse_constant(json_stream_parser_state_t* state, const char* expected_value, const size_t expected_value_length, const size_t depth) {
+static json_parser_result_t json_parse_constant(json_stream_parser_state_t* state, const char* expected_value, const size_t expected_value_length, const size_t depth, const json_parse_context_t context) {
     if (state == nullptr) {
-        return json_create_error_result(JSON_PARSE_CONFIG_ERROR, "Internal error: null parser state");
+        return (json_parser_result_t) { JSON_PARSE_CONFIG_ERROR, context, JSON_ERROR_NULL_POINTER, 0, state->position };
     }
 
     if (expected_value_length > 100) {
-        return json_create_error_result(JSON_PARSE_CONFIG_ERROR, "Internal error: expected_value_length too large");
+        return (json_parser_result_t) { JSON_PARSE_CONFIG_ERROR, context, JSON_ERROR_EXPECTED_CONSTANT_LENGTH_TOO_LONG, 0, state->position };
     }
 
     if (depth > state->max_depth) {
-        return json_create_error_result(JSON_PARSE_ERROR_MAX_DEPTH, "Maximum parsing depth exceeded");
+        return (json_parser_result_t) { JSON_PARSE_ERROR_MAX_DEPTH, context, JSON_ERROR_UNKNOWN, 0, state->position };
     }
 
     if (state->length - state->position < expected_value_length) {
-        return json_create_error_result(JSON_PARSE_ERROR_UNEXPECTED_END, "Unexpected end of JSON input");
+        return (json_parser_result_t) { JSON_PARSE_ERROR_UNEXPECTED_END, context, JSON_ERROR_INVALID_CONSTANT, expected_value_length, state->position };
     }
 
     for (int i = 0; i < expected_value_length; ++i) {
         const char current_char = state->json[state->position + i];
 
         if (current_char != expected_value[i]) {
-            json_parser_result_t result = { .result = JSON_PARSE_ERROR_INVALID_SYNTAX };
-            snprintf(result.message, JSON_ERROR_MESSAGE_SIZE, "Syntax error: expected '%s' but get '%c' at position %zu", expected_value, current_char, state->position + i);
-            return result;
+            return (json_parser_result_t) {
+                .code = JSON_PARSE_ERROR_INVALID_SYNTAX,
+                .context = context,
+                .error = JSON_ERROR_UNEXPECTED_CHARACTER,
+                .extra = expected_value[i],
+                .position = state->position + i,
+            };
         }
     }
 
@@ -193,10 +202,10 @@ static json_parser_result_t json_parse_constant(json_stream_parser_state_t* stat
 }
 
 static json_parser_result_t json_parse_null(json_stream_parser_state_t* state, const size_t depth) {
-    const json_parser_result_t result = json_parse_constant(state, "null", 4, depth);
+    const json_parser_result_t result = json_parse_constant(state, "null", 4, depth, JSON_CONTEXT_NULL);
 
     if (
-        result.result != JSON_PARSE_SUCCESS
+        result.code != JSON_PARSE_SUCCESS
         || state->handler->on_null == nullptr
     ) {
         return result;
@@ -207,12 +216,12 @@ static json_parser_result_t json_parse_null(json_stream_parser_state_t* state, c
 
 static json_parser_result_t json_parse_boolean(json_stream_parser_state_t* state, const bool expected_value, const size_t depth) {
     const json_parser_result_t result = expected_value == true
-        ? json_parse_constant(state, "true", 4, depth)
-        : json_parse_constant(state, "false", 5, depth)
+        ? json_parse_constant(state, "true", 4, depth, JSON_CONTEXT_BOOL)
+        : json_parse_constant(state, "false", 5, depth, JSON_CONTEXT_BOOL)
     ;
 
     if (
-        result.result != JSON_PARSE_SUCCESS
+        result.code != JSON_PARSE_SUCCESS
         || state->handler->on_bool == nullptr
     ) {
         return result;
@@ -223,15 +232,15 @@ static json_parser_result_t json_parse_boolean(json_stream_parser_state_t* state
 
 static json_parser_result_t json_parse_number(json_stream_parser_state_t* state, const size_t depth) {
     if (state == nullptr) {
-        return json_create_error_result(JSON_PARSE_CONFIG_ERROR, "Internal error: null parser state");
+        return (json_parser_result_t) { JSON_PARSE_CONFIG_ERROR, JSON_CONTEXT_NUMBER, JSON_ERROR_NULL_POINTER, 0, state->position };
     }
 
     if (depth > state->max_depth) {
-        return json_create_error_result(JSON_PARSE_ERROR_MAX_DEPTH, "Maximum parsing depth exceeded");
+        return (json_parser_result_t) { JSON_PARSE_ERROR_MAX_DEPTH, JSON_CONTEXT_NUMBER, JSON_ERROR_UNKNOWN, 0, state->position };
     }
 
     if (state->position >= state->length) {
-        return json_create_error_result(JSON_PARSE_ERROR_UNEXPECTED_END, "Unexpected end of JSON input");
+        return (json_parser_result_t) { JSON_PARSE_ERROR_UNEXPECTED_END, JSON_CONTEXT_NUMBER, JSON_ERROR_EMPTY_VALUE, 0, state->position };
     }
 
     const size_t start_position = state->position;
@@ -292,19 +301,43 @@ static json_parser_result_t json_parse_number(json_stream_parser_state_t* state,
 
 static json_parser_result_t json_parse_string_internal(json_stream_parser_state_t* state, const size_t depth, const bool is_property_key) {
     if (state == nullptr) {
-        return json_create_error_result(JSON_PARSE_CONFIG_ERROR, "Internal error: null parser state");
+        return (json_parser_result_t) {
+            .code = JSON_PARSE_CONFIG_ERROR,
+            .context = is_property_key ? JSON_CONTEXT_OBJECT_PROPERTY : JSON_CONTEXT_STRING,
+            .error = JSON_ERROR_NULL_POINTER,
+            .extra = 0,
+            .position = state->position,
+        };
     }
 
     if (depth > state->max_depth) {
-        return json_create_error_result(JSON_PARSE_ERROR_MAX_DEPTH, "Maximum parsing depth exceeded");
+        return (json_parser_result_t) {
+            .code = JSON_PARSE_ERROR_MAX_DEPTH,
+            .context = is_property_key ? JSON_CONTEXT_OBJECT_PROPERTY : JSON_CONTEXT_STRING,
+            .error = JSON_ERROR_UNKNOWN,
+            .extra = 0,
+            .position = state->position,
+        };
     }
 
     if (state->position + 1 >= state->length) {
-        return json_create_error_result(JSON_PARSE_ERROR_UNEXPECTED_END, "Unexpected end of JSON input");
+        return (json_parser_result_t) {
+            .code = JSON_PARSE_ERROR_UNEXPECTED_END,
+            .context = is_property_key ? JSON_CONTEXT_OBJECT_PROPERTY : JSON_CONTEXT_STRING,
+            .error = JSON_ERROR_TOO_SMALL,
+            .extra = 0,
+            .position = state->position,
+        };
     }
 
     if (state->json[state->position] != '"') {
-        return json_create_error_result(JSON_PARSE_ERROR_INVALID_SYNTAX, "Syntax error: expected '\"' at the beginning of string");
+        return (json_parser_result_t) {
+            .code = JSON_PARSE_ERROR_INVALID_SYNTAX,
+            .context = is_property_key ? JSON_CONTEXT_OBJECT_PROPERTY : JSON_CONTEXT_STRING,
+            .error = JSON_ERROR_UNEXPECTED_CHARACTER,
+            .extra = '"',
+            .position = state->position,
+        };
     }
 
     // Skip the opening quote
@@ -314,7 +347,13 @@ static json_parser_result_t json_parse_string_internal(json_stream_parser_state_
 
     for (; state->position < state->length; ++state->position) {
         if (state->position - start_position >= state->max_string_size) {
-            return json_create_error_result(JSON_PARSE_ERROR_MAX_STRING_SIZE, "Maximum string size exceeded");
+            return (json_parser_result_t) {
+                .code = JSON_PARSE_ERROR_MAX_STRING_SIZE,
+                .context = is_property_key ? JSON_CONTEXT_OBJECT_PROPERTY : JSON_CONTEXT_STRING,
+                .error = JSON_ERROR_UNKNOWN,
+                .extra = 0,
+                .position = state->position,
+            };
         }
 
         const char current_char = state->json[state->position];
@@ -336,7 +375,13 @@ static json_parser_result_t json_parse_string_internal(json_stream_parser_state_
     }
 
     if (!end) {
-        return json_create_error_result(JSON_PARSE_ERROR_UNEXPECTED_END, "Unexpected end of JSON input while parsing string");
+        return (json_parser_result_t) {
+            .code = JSON_PARSE_ERROR_UNEXPECTED_END,
+            .context = is_property_key ? JSON_CONTEXT_OBJECT_PROPERTY : JSON_CONTEXT_STRING,
+            .error = JSON_ERROR_MISSING_CLOSING_CHARACTER,
+            .extra = '"',
+            .position = state->position,
+        };
     }
 
     // Move to the next character after the closing quote
@@ -366,19 +411,19 @@ static json_parser_result_t json_parse_string(json_stream_parser_state_t* state,
 
 static json_parser_result_t json_parse_object(json_stream_parser_state_t* state, const size_t depth) {
     if (state == nullptr) {
-        return json_create_error_result(JSON_PARSE_CONFIG_ERROR, "Internal error: null parser state");
+        return (json_parser_result_t) { JSON_PARSE_CONFIG_ERROR, JSON_CONTEXT_OBJECT, JSON_ERROR_NULL_POINTER, 0, state->position };
     }
 
     if (depth > state->max_depth) {
-        return json_create_error_result(JSON_PARSE_ERROR_MAX_DEPTH, "Maximum parsing depth exceeded");
+        return (json_parser_result_t) { JSON_PARSE_ERROR_MAX_DEPTH, JSON_CONTEXT_OBJECT, JSON_ERROR_UNKNOWN, 0, state->position };
     }
 
     if (state->position + 1 >= state->length) {
-        return json_create_error_result(JSON_PARSE_ERROR_UNEXPECTED_END, "Unexpected end of JSON input");
+        return (json_parser_result_t) { JSON_PARSE_ERROR_UNEXPECTED_END, JSON_CONTEXT_OBJECT, JSON_ERROR_TOO_SMALL, 0, state->position };
     }
 
     if (state->json[state->position] != '{') {
-        return json_create_error_result(JSON_PARSE_ERROR_INVALID_SYNTAX, "Syntax error: expected '{' at the beginning of an object");
+        return (json_parser_result_t) { JSON_PARSE_ERROR_INVALID_SYNTAX, JSON_CONTEXT_OBJECT, JSON_ERROR_UNEXPECTED_CHARACTER, '{', state->position };
     }
 
     // Skip the opening bracket
@@ -387,7 +432,7 @@ static json_parser_result_t json_parse_object(json_stream_parser_state_t* state,
     if (state->handler->on_object_start != nullptr) {
         const json_parser_result_t start_array_result = state->handler->on_object_start(state->handler);
 
-        if (start_array_result.result != JSON_PARSE_SUCCESS) {
+        if (start_array_result.code != JSON_PARSE_SUCCESS) {
             return start_array_result;
         }
     }
@@ -397,11 +442,11 @@ static json_parser_result_t json_parse_object(json_stream_parser_state_t* state,
 
     for (size_t len = 0; state->position < state->length; ++len) {
         if (len > state->max_struct_size) {
-            return json_create_error_result(JSON_PARSE_ERROR_MAX_STRUCT_SIZE, "Maximum object size exceeded");
+            return (json_parser_result_t) { JSON_PARSE_ERROR_MAX_STRUCT_SIZE, JSON_CONTEXT_OBJECT, JSON_ERROR_UNKNOWN, 0, state->position };
         }
 
         if (!skip_whitespace(state)) {
-            return json_create_error_result(JSON_PARSE_ERROR_UNEXPECTED_END, "Unexpected end of JSON input while parsing object");
+            return (json_parser_result_t) { JSON_PARSE_ERROR_UNEXPECTED_END, JSON_CONTEXT_OBJECT, JSON_ERROR_EMPTY_VALUE, 0, state->position };
         }
 
         const char current_char = state->json[state->position];
@@ -414,7 +459,7 @@ static json_parser_result_t json_parse_object(json_stream_parser_state_t* state,
 
         if (current_char == ',') {
             if (property_expected == true) {
-                return json_create_error_result(JSON_PARSE_ERROR_INVALID_SYNTAX, "Syntax error: unexpected ',' in object");
+                return (json_parser_result_t) { JSON_PARSE_ERROR_INVALID_SYNTAX, JSON_CONTEXT_OBJECT, JSON_ERROR_UNEXPECTED_CHARACTER, '"', state->position };
             }
 
             property_expected = true;
@@ -423,34 +468,34 @@ static json_parser_result_t json_parse_object(json_stream_parser_state_t* state,
         }
 
         if (!property_expected) {
-            return json_create_error_result(JSON_PARSE_ERROR_INVALID_SYNTAX, "Syntax error: expected ',' between object properties");
+            return (json_parser_result_t) { JSON_PARSE_ERROR_INVALID_SYNTAX, JSON_CONTEXT_OBJECT, JSON_ERROR_UNEXPECTED_CHARACTER, ',', state->position };
         }
 
         property_expected = false;
 
         const json_parser_result_t key_result = json_parse_string_internal(state, depth + 1, true);
-        if (key_result.result != JSON_PARSE_SUCCESS) {
+        if (key_result.code != JSON_PARSE_SUCCESS) {
             return key_result;
         }
 
         if (!skip_whitespace(state)) {
-            return json_create_error_result(JSON_PARSE_ERROR_UNEXPECTED_END, "Unexpected end of JSON input while parsing object");
+            return (json_parser_result_t) { JSON_PARSE_ERROR_UNEXPECTED_END, JSON_CONTEXT_OBJECT, JSON_ERROR_MISSING_CLOSING_CHARACTER, ':', state->position };
         }
 
         if (state->position >= state->length || state->json[state->position] != ':') {
-            return json_create_error_result(JSON_PARSE_ERROR_INVALID_SYNTAX, "Syntax error: expected ':' after object property key");
+            return (json_parser_result_t) { JSON_PARSE_ERROR_INVALID_SYNTAX, JSON_CONTEXT_OBJECT, JSON_ERROR_UNEXPECTED_CHARACTER, ':', state->position };
         }
 
         ++state->position;
 
         const json_parser_result_t value_result = json_parse_value(state, depth + 1);
-        if (value_result.result != JSON_PARSE_SUCCESS) {
+        if (value_result.code != JSON_PARSE_SUCCESS) {
             return value_result;
         }
     }
 
     if (!end) {
-        return json_create_error_result(JSON_PARSE_ERROR_UNEXPECTED_END, "Unexpected end of JSON input while parsing object");
+        return (json_parser_result_t) { JSON_PARSE_ERROR_UNEXPECTED_END, JSON_CONTEXT_OBJECT, JSON_ERROR_MISSING_CLOSING_CHARACTER, '}', state->position };
     }
 
     if (state->handler->on_object_end == nullptr) {
@@ -462,19 +507,19 @@ static json_parser_result_t json_parse_object(json_stream_parser_state_t* state,
 
 static json_parser_result_t json_parse_array(json_stream_parser_state_t* state, const size_t depth) {
     if (state == nullptr) {
-        return json_create_error_result(JSON_PARSE_CONFIG_ERROR, "Internal error: null parser state");
+        return (json_parser_result_t) { JSON_PARSE_CONFIG_ERROR, JSON_CONTEXT_ARRAY, JSON_ERROR_NULL_POINTER, 0, state->position };
     }
 
     if (depth > state->max_depth) {
-        return json_create_error_result(JSON_PARSE_ERROR_MAX_DEPTH, "Maximum parsing depth exceeded");
+        return (json_parser_result_t) { JSON_PARSE_ERROR_MAX_DEPTH, JSON_CONTEXT_ARRAY, JSON_ERROR_UNKNOWN, 0, state->position };
     }
 
     if (state->position + 1 >= state->length) {
-        return json_create_error_result(JSON_PARSE_ERROR_UNEXPECTED_END, "Unexpected end of JSON input");
+        return (json_parser_result_t) { JSON_PARSE_ERROR_UNEXPECTED_END, JSON_CONTEXT_ARRAY, JSON_ERROR_TOO_SMALL, 0, state->position };
     }
 
     if (state->json[state->position] != '[') {
-        return json_create_error_result(JSON_PARSE_ERROR_INVALID_SYNTAX, "Syntax error: expected '[' at the beginning of an array");
+        return (json_parser_result_t) { JSON_PARSE_ERROR_INVALID_SYNTAX, JSON_CONTEXT_ARRAY, JSON_ERROR_UNEXPECTED_CHARACTER, '[', state->position };
     }
 
     // Skip the opening bracket
@@ -483,7 +528,7 @@ static json_parser_result_t json_parse_array(json_stream_parser_state_t* state, 
     if (state->handler->on_array_start != nullptr) {
         const json_parser_result_t start_array_result = state->handler->on_array_start(state->handler);
 
-        if (start_array_result.result != JSON_PARSE_SUCCESS) {
+        if (start_array_result.code != JSON_PARSE_SUCCESS) {
             return start_array_result;
         }
     }
@@ -493,11 +538,11 @@ static json_parser_result_t json_parse_array(json_stream_parser_state_t* state, 
 
     for (size_t len = 0; state->position < state->length; ++len) {
         if (len > state->max_struct_size) {
-            return json_create_error_result(JSON_PARSE_ERROR_MAX_STRUCT_SIZE, "Maximum array size exceeded");
+            return (json_parser_result_t) { JSON_PARSE_ERROR_MAX_STRUCT_SIZE, JSON_CONTEXT_ARRAY, JSON_ERROR_UNKNOWN, 0, state->position };
         }
 
         if (!skip_whitespace(state)) {
-            return json_create_error_result(JSON_PARSE_ERROR_UNEXPECTED_END, "Unexpected end of JSON input while parsing array");
+            break;
         }
 
         const char current_char = state->json[state->position];
@@ -510,7 +555,7 @@ static json_parser_result_t json_parse_array(json_stream_parser_state_t* state, 
 
         if (current_char == ',') {
             if (value_expected == true) {
-                return json_create_error_result(JSON_PARSE_ERROR_INVALID_SYNTAX, "Syntax error: unexpected ',' in array");
+                return (json_parser_result_t) { JSON_PARSE_ERROR_INVALID_SYNTAX, JSON_CONTEXT_ARRAY, JSON_ERROR_UNEXPECTED_CHARACTER, 0, state->position };
             }
 
             value_expected = true;
@@ -519,19 +564,19 @@ static json_parser_result_t json_parse_array(json_stream_parser_state_t* state, 
         }
 
         if (!value_expected) {
-            return json_create_error_result(JSON_PARSE_ERROR_INVALID_SYNTAX, "Syntax error: expected ',' between array values");
+            return (json_parser_result_t) { JSON_PARSE_ERROR_INVALID_SYNTAX, JSON_CONTEXT_ARRAY, JSON_ERROR_UNEXPECTED_CHARACTER, ',', state->position };
         }
 
         const json_parser_result_t value_result = json_parse_value(state, depth + 1);
         value_expected = false;
 
-        if (value_result.result != JSON_PARSE_SUCCESS) {
+        if (value_result.code != JSON_PARSE_SUCCESS) {
             return value_result;
         }
     }
 
     if (!end) {
-        return json_create_error_result(JSON_PARSE_ERROR_UNEXPECTED_END, "Unexpected end of JSON input while parsing array");
+        return (json_parser_result_t) { JSON_PARSE_ERROR_UNEXPECTED_END, JSON_CONTEXT_ARRAY, JSON_ERROR_MISSING_CLOSING_CHARACTER, ']', state->position };
     }
 
     if (state->handler->on_array_end == nullptr) {

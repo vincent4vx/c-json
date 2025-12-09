@@ -135,52 +135,52 @@ static json_parser_handler_t init_handler() {
 static json_parser_result_t parse_json(const char* json) {
     json_parser_handler_t handler = init_handler();
 
-    return json_parse(json, strlen(json), &handler, 32, 1024, 1024);
+    return json_parse(json, strlen(json), &handler, (json_parser_options_t) {32, 1024, 1024 });
 }
 
 static json_parser_result_t parse_json_no_handler(const char* json) {
     json_parser_handler_t handler = {};
 
-    return json_parse(json, strlen(json), &handler, 32, 1024, 1024);
+    return json_parse(json, strlen(json), &handler, (json_parser_options_t) {32, 1024, 1024 });
 }
 
 TEST(parse_number) {
-    ASSERT_INT(JSON_PARSE_SUCCESS, parse_json("123").result);
+    ASSERT_INT(JSON_PARSE_SUCCESS, parse_json("123").code);
     ASSERT_INT(1, test_call_stack.count);
     ASSERT_STR("on_number", test_call_stack.entries[0].function_name);
     ASSERT_DOUBLE(123.0, *(double*) test_call_stack.entries[0].parameter, 0.0);
 
-    ASSERT_INT(JSON_PARSE_SUCCESS, parse_json("123.456").result);
+    ASSERT_INT(JSON_PARSE_SUCCESS, parse_json("123.456").code);
     ASSERT_INT(1, test_call_stack.count);
     ASSERT_STR("on_number", test_call_stack.entries[0].function_name);
     ASSERT_DOUBLE(123.456, *(double*) test_call_stack.entries[0].parameter, 0.0);
 
-    ASSERT_INT(JSON_PARSE_SUCCESS, parse_json("-42").result);
+    ASSERT_INT(JSON_PARSE_SUCCESS, parse_json("-42").code);
     ASSERT_INT(1, test_call_stack.count);
     ASSERT_STR("on_number", test_call_stack.entries[0].function_name);
     ASSERT_DOUBLE(-42.0, *(double*) test_call_stack.entries[0].parameter, 0.0);
 }
 
 TEST(parse_null) {
-    ASSERT_INT(JSON_PARSE_SUCCESS, parse_json("null").result);
+    ASSERT_INT(JSON_PARSE_SUCCESS, parse_json("null").code);
     ASSERT_INT(1, test_call_stack.count);
     ASSERT_STR("on_null", test_call_stack.entries[0].function_name);
 }
 
 TEST(parse_boolean) {
-    ASSERT_INT(JSON_PARSE_SUCCESS, parse_json("true").result);
+    ASSERT_INT(JSON_PARSE_SUCCESS, parse_json("true").code);
     ASSERT_INT(1, test_call_stack.count);
     ASSERT_STR("on_bool", test_call_stack.entries[0].function_name);
     ASSERT_TRUE(*(bool*) test_call_stack.entries[0].parameter == true);
 
-    ASSERT_INT(JSON_PARSE_SUCCESS, parse_json("false").result);
+    ASSERT_INT(JSON_PARSE_SUCCESS, parse_json("false").code);
     ASSERT_INT(1, test_call_stack.count);
     ASSERT_STR("on_bool", test_call_stack.entries[0].function_name);
     ASSERT_TRUE(*(bool*) test_call_stack.entries[0].parameter == false);
 }
 
 TEST(parse_string) {
-    ASSERT_INT(JSON_PARSE_SUCCESS, parse_json("\"Hello, World!\"").result);
+    ASSERT_INT(JSON_PARSE_SUCCESS, parse_json("\"Hello, World!\"").code);
     ASSERT_INT(1, test_call_stack.count);
     ASSERT_STR("on_string", test_call_stack.entries[0].function_name);
 
@@ -190,12 +190,12 @@ TEST(parse_string) {
 }
 
 TEST(parse_array_simple) {
-    ASSERT_INT(JSON_PARSE_SUCCESS, parse_json("[]").result);
+    ASSERT_INT(JSON_PARSE_SUCCESS, parse_json("[]").code);
     ASSERT_INT(2, test_call_stack.count);
     ASSERT_STR("on_array_start", test_call_stack.entries[0].function_name);
     ASSERT_STR("on_array_end", test_call_stack.entries[1].function_name);
 
-    ASSERT_INT(JSON_PARSE_SUCCESS, parse_json("[123, true]").result);
+    ASSERT_INT(JSON_PARSE_SUCCESS, parse_json("[123, true]").code);
     ASSERT_INT(4, test_call_stack.count);
     ASSERT_STR("on_array_start", test_call_stack.entries[0].function_name);
     ASSERT_STR("on_number", test_call_stack.entries[1].function_name);
@@ -206,12 +206,12 @@ TEST(parse_array_simple) {
 }
 
 TEST(parse_object_simple) {
-    ASSERT_INT(JSON_PARSE_SUCCESS, parse_json("{}").result);
+    ASSERT_INT(JSON_PARSE_SUCCESS, parse_json("{}").code);
     ASSERT_INT(2, test_call_stack.count);
     ASSERT_STR("on_object_start", test_call_stack.entries[0].function_name);
     ASSERT_STR("on_object_end", test_call_stack.entries[1].function_name);
 
-    ASSERT_INT(JSON_PARSE_SUCCESS, parse_json("{\"foo\": 42}").result);
+    ASSERT_INT(JSON_PARSE_SUCCESS, parse_json("{\"foo\": 42}").code);
     ASSERT_INT(4, test_call_stack.count);
     ASSERT_STR("on_object_start", test_call_stack.entries[0].function_name);
     ASSERT_STR("on_object_property", test_call_stack.entries[1].function_name);
@@ -234,7 +234,7 @@ TEST(parse_complexe_json) {
             "\"scores\": [12.5, -314]"
         "}";
 
-    ASSERT_INT(JSON_PARSE_SUCCESS, parse_json(json).result);
+    ASSERT_INT(JSON_PARSE_SUCCESS, parse_json(json).code);
 
     // Nombre d'événements attendus
     ASSERT_INT(25, test_call_stack.count);
@@ -347,51 +347,75 @@ TEST(parse_complexe_json) {
 TEST(parse_error) {
     {
         const json_parser_result_t result = parse_json("{]sdfdsfoi");
-        ASSERT_INT(JSON_PARSE_ERROR_INVALID_SYNTAX, result.result);
-        ASSERT_STR("Syntax error: expected '\"' at the beginning of string", result.message);
+        ASSERT_INT(JSON_PARSE_ERROR_INVALID_SYNTAX, result.code);
+        ASSERT_INT(JSON_CONTEXT_OBJECT_PROPERTY, result.context);
+        ASSERT_INT(JSON_ERROR_UNEXPECTED_CHARACTER, result.error);
+        ASSERT_CHAR('"', result.extra);
+        ASSERT_INT(1, result.position);
     }
 
     {
         const json_parser_result_t result = parse_json("tr");
-        ASSERT_INT(JSON_PARSE_ERROR_UNEXPECTED_END, result.result);
-        ASSERT_STR("Unexpected end of JSON input", result.message);
+        ASSERT_INT(JSON_PARSE_ERROR_UNEXPECTED_END, result.code);
+        ASSERT_INT(JSON_CONTEXT_BOOL, result.context);
+        ASSERT_INT(JSON_ERROR_INVALID_CONSTANT, result.error);
+        ASSERT_INT(4, result.extra);
+        ASSERT_INT(0, result.position);
     }
 
     {
         const json_parser_result_t result = parse_json("trsssssssssss");
-        ASSERT_INT(JSON_PARSE_ERROR_INVALID_SYNTAX, result.result);
-        ASSERT_STR("Syntax error: expected 'true' but get 's' at position 2", result.message);
+        ASSERT_INT(JSON_PARSE_ERROR_INVALID_SYNTAX, result.code);
+        ASSERT_INT(JSON_CONTEXT_BOOL, result.context);
+        ASSERT_INT(JSON_ERROR_UNEXPECTED_CHARACTER, result.error);
+        ASSERT_CHAR('u', result.extra);
+        ASSERT_INT(2, result.position);
     }
 
     {
         const json_parser_result_t result = parse_json("[,]");
-        ASSERT_INT(JSON_PARSE_ERROR_INVALID_SYNTAX, result.result);
-        ASSERT_STR("Syntax error: unexpected ',' in array", result.message);
+        ASSERT_INT(JSON_PARSE_ERROR_INVALID_SYNTAX, result.code);
+        ASSERT_INT(JSON_CONTEXT_ARRAY, result.context);
+        ASSERT_INT(JSON_ERROR_UNEXPECTED_CHARACTER, result.error);
+        ASSERT_CHAR(0, result.extra);
+        ASSERT_INT(1, result.position);
     }
 
     {
         const json_parser_result_t result = parse_json("{test}");
-        ASSERT_INT(JSON_PARSE_ERROR_INVALID_SYNTAX, result.result);
-        ASSERT_STR("Syntax error: expected '\"' at the beginning of string", result.message);
+        ASSERT_INT(JSON_PARSE_ERROR_INVALID_SYNTAX, result.code);
+        ASSERT_INT(JSON_CONTEXT_OBJECT_PROPERTY, result.context);
+        ASSERT_INT(JSON_ERROR_UNEXPECTED_CHARACTER, result.error);
+        ASSERT_CHAR('"', result.extra);
+        ASSERT_INT(1, result.position);
     }
 
     {
         const json_parser_result_t result = parse_json("{\"test\"}");
-        ASSERT_INT(JSON_PARSE_ERROR_INVALID_SYNTAX, result.result);
-        ASSERT_STR("Syntax error: expected ':' after object property key", result.message);
+        ASSERT_INT(JSON_PARSE_ERROR_INVALID_SYNTAX, result.code);
+        ASSERT_INT(JSON_CONTEXT_OBJECT, result.context);
+        ASSERT_INT(JSON_ERROR_UNEXPECTED_CHARACTER, result.error);
+        ASSERT_CHAR(':', result.extra);
+        ASSERT_INT(7, result.position);
     }
 
     {
         const json_parser_result_t result = parse_json("{\"test\":}");
-        ASSERT_INT(JSON_PARSE_ERROR_INVALID_SYNTAX, result.result);
-        ASSERT_STR("Syntax error: unexpected character '}' at position 8", result.message);
+        ASSERT_INT(JSON_PARSE_ERROR_INVALID_SYNTAX, result.code);
+        ASSERT_INT(JSON_CONTEXT_UNKNOWN, result.context);
+        ASSERT_INT(JSON_ERROR_UNEXPECTED_CHARACTER, result.error);
+        ASSERT_CHAR(0, result.extra);
+        ASSERT_INT(8, result.position);
     }
 }
 
 TEST(max_depth_exceeded) {
     const json_parser_result_t result = parse_json("[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]");
-    ASSERT_INT(JSON_PARSE_ERROR_MAX_DEPTH, result.result);
-    ASSERT_STR("Maximum parsing depth exceeded", result.message);
+    ASSERT_INT(JSON_PARSE_ERROR_MAX_DEPTH, result.code);
+    ASSERT_INT(JSON_CONTEXT_ARRAY, result.context);
+    ASSERT_INT(JSON_ERROR_UNKNOWN, result.error);
+    ASSERT_CHAR(0, result.extra);
+    ASSERT_INT(16, result.position);
 }
 
 TEST(max_string_size_exceeded) {
@@ -402,8 +426,11 @@ TEST(max_string_size_exceeded) {
     long_string[2048] = '\0';
 
     const json_parser_result_t result = parse_json(long_string);
-    ASSERT_INT(JSON_PARSE_ERROR_MAX_STRING_SIZE, result.result);
-    ASSERT_STR("Maximum string size exceeded", result.message);
+    ASSERT_INT(JSON_PARSE_ERROR_MAX_STRING_SIZE, result.code);
+    ASSERT_INT(JSON_CONTEXT_STRING, result.context);
+    ASSERT_INT(JSON_ERROR_UNKNOWN, result.error);
+    ASSERT_CHAR(0, result.extra);
+    ASSERT_INT(1024, result.position);
 }
 
 TEST(max_array_length_exceeded) {
@@ -417,8 +444,11 @@ TEST(max_array_length_exceeded) {
     large_array[2052] = '\0';
 
     const json_parser_result_t result = parse_json_no_handler(large_array);
-    ASSERT_INT(JSON_PARSE_ERROR_MAX_STRUCT_SIZE, result.result);
-    ASSERT_STR("Maximum array size exceeded", result.message);
+    ASSERT_INT(JSON_PARSE_ERROR_MAX_STRUCT_SIZE, result.code);
+    ASSERT_INT(JSON_CONTEXT_ARRAY, result.context);
+    ASSERT_INT(JSON_ERROR_UNKNOWN, result.error);
+    ASSERT_CHAR(0, result.extra);
+    ASSERT_INT(1026, result.position);
 }
 
 TEST(max_struct_length_exceeded) {
@@ -435,6 +465,9 @@ TEST(max_struct_length_exceeded) {
     large_obj[5127] = '\0';
 
     const json_parser_result_t result = parse_json_no_handler(large_obj);
-    ASSERT_INT(JSON_PARSE_ERROR_MAX_STRUCT_SIZE, result.result);
-    ASSERT_STR("Maximum object size exceeded", result.message);
+    ASSERT_INT(JSON_PARSE_ERROR_MAX_STRUCT_SIZE, result.code);
+    ASSERT_INT(JSON_CONTEXT_OBJECT, result.context);
+    ASSERT_INT(JSON_ERROR_UNKNOWN, result.error);
+    ASSERT_CHAR(0, result.extra);
+    ASSERT_INT(2565, result.position);
 }
