@@ -14,9 +14,9 @@ static json_arena_t* test_arena = nullptr;
 
 static json_value_parser_result_t parse_json(const char* json) {
     if (test_arena == nullptr) {
-        const size_t arena_size = json_arena_size(1024, 1024, 1024);
+        const size_t arena_size = json_arena_size(1000000, 1024, 1024);
         test_arena = (json_arena_t*) malloc(arena_size);
-        json_arena_init(test_arena, arena_size, 1024, 1024, 1024);
+        json_arena_init(test_arena, arena_size, 1000000, 1024, 1024);
     }
 
     return json_parse_value_defaults(strlen(json), json, test_arena);

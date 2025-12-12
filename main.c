@@ -7,10 +7,10 @@
 #include "type/types.h"
 
 json_value_t* json_parse_cstr(char* cstr, json_arena_t* arena) {
-    json_value_parser_result_t result = json_parse_value(cstr, strlen(cstr), arena, 32, 1024, 1024);
+    json_value_parser_result_t result = json_parse_value_defaults(strlen(cstr), cstr, arena);
 
     if (result.result.code != JSON_PARSE_SUCCESS) {
-        printf("Error parsing JSON: %s\n", result.result.message);
+        printf("Error parsing JSON: %s\n", json_parse_error_message(result.result));
     }
 
     return result.value;
