@@ -51,189 +51,213 @@ TEST(parse_number) {
         ASSERT_DOUBLE(-42, result.value->number_value, 0.0);
     }
 }
-//
-// TEST(parse_null) {
-//     ASSERT_INT(JSON_PARSE_SUCCESS, parse_json("null").code);
-//     ASSERT_INT(1, test_call_stack.count);
-//     ASSERT_STR("on_null", test_call_stack.entries[0].function_name);
-// }
-//
-// TEST(parse_boolean) {
-//     ASSERT_INT(JSON_PARSE_SUCCESS, parse_json("true").code);
-//     ASSERT_INT(1, test_call_stack.count);
-//     ASSERT_STR("on_bool", test_call_stack.entries[0].function_name);
-//     ASSERT_TRUE(*(bool*) test_call_stack.entries[0].parameter == true);
-//
-//     ASSERT_INT(JSON_PARSE_SUCCESS, parse_json("false").code);
-//     ASSERT_INT(1, test_call_stack.count);
-//     ASSERT_STR("on_bool", test_call_stack.entries[0].function_name);
-//     ASSERT_TRUE(*(bool*) test_call_stack.entries[0].parameter == false);
-// }
-//
-// TEST(parse_string) {
-//     ASSERT_INT(JSON_PARSE_SUCCESS, parse_json("\"Hello, World!\"").code);
-//     ASSERT_INT(1, test_call_stack.count);
-//     ASSERT_STR("on_string", test_call_stack.entries[0].function_name);
-//
-//     json_raw_string_t str = *(json_raw_string_t*) test_call_stack.entries[0].parameter;
-//     ASSERT_INT(15, str.length);
-//     ASSERT_STRN("\"Hello, World!\"", str.value, 15);
-// }
-//
-// TEST(parse_array_simple) {
-//     ASSERT_INT(JSON_PARSE_SUCCESS, parse_json("[]").code);
-//     ASSERT_INT(2, test_call_stack.count);
-//     ASSERT_STR("on_array_start", test_call_stack.entries[0].function_name);
-//     ASSERT_STR("on_array_end", test_call_stack.entries[1].function_name);
-//
-//     ASSERT_INT(JSON_PARSE_SUCCESS, parse_json("[123, true]").code);
-//     ASSERT_INT(4, test_call_stack.count);
-//     ASSERT_STR("on_array_start", test_call_stack.entries[0].function_name);
-//     ASSERT_STR("on_number", test_call_stack.entries[1].function_name);
-//     ASSERT_DOUBLE(123.0, *(double*) test_call_stack.entries[1].parameter, 0.0);
-//     ASSERT_STR("on_bool", test_call_stack.entries[2].function_name);
-//     ASSERT_TRUE(*(bool*) test_call_stack.entries[2].parameter == true);
-//     ASSERT_STR("on_array_end", test_call_stack.entries[3].function_name);
-// }
-//
-// TEST(parse_object_simple) {
-//     ASSERT_INT(JSON_PARSE_SUCCESS, parse_json("{}").code);
-//     ASSERT_INT(2, test_call_stack.count);
-//     ASSERT_STR("on_object_start", test_call_stack.entries[0].function_name);
-//     ASSERT_STR("on_object_end", test_call_stack.entries[1].function_name);
-//
-//     ASSERT_INT(JSON_PARSE_SUCCESS, parse_json("{\"foo\": 42}").code);
-//     ASSERT_INT(4, test_call_stack.count);
-//     ASSERT_STR("on_object_start", test_call_stack.entries[0].function_name);
-//     ASSERT_STR("on_object_property", test_call_stack.entries[1].function_name);
-//     json_raw_string_t key = *(json_raw_string_t*) test_call_stack.entries[1].parameter;
-//     ASSERT_INT(5, key.length);
-//     ASSERT_STRN("\"foo\"", key.value, 5);
-//     ASSERT_STR("on_number", test_call_stack.entries[2].function_name);
-//     ASSERT_DOUBLE(42.0, *(double*) test_call_stack.entries[2].parameter, 0.0);
-//     ASSERT_STR("on_object_end", test_call_stack.entries[3].function_name);
-// }
-//
-// TEST(parse_complexe_json) {
-//     const char* json =
-//         "{"
-//             "\"name\": \"Alice\","
-//             "\"age\": 30,"
-//             "\"married\": false,"
-//             "\"children\": [\"Bob\", null],"
-//             "\"address\": {\"city\": \"Paris\", \"zip\": 75000},"
-//             "\"scores\": [12.5, -314]"
-//         "}";
-//
-//     ASSERT_INT(JSON_PARSE_SUCCESS, parse_json(json).code);
-//
-//     // Nombre d'événements attendus
-//     ASSERT_INT(25, test_call_stack.count);
-//
-//     // 0
-//     ASSERT_STR("on_object_start", test_call_stack.entries[0].function_name);
-//
-//     // 1 name prop -> 2 string "Alice"
-//     ASSERT_STR("on_object_property", test_call_stack.entries[1].function_name);
-//     {
-//         json_raw_string_t key = *(json_raw_string_t*) test_call_stack.entries[1].parameter;
-//         ASSERT_INT(6, key.length); // "\"name\""
-//         ASSERT_STRN("\"name\"", key.value, 6);
-//     }
-//     ASSERT_STR("on_string", test_call_stack.entries[2].function_name);
-//     {
-//         json_raw_string_t val = *(json_raw_string_t*) test_call_stack.entries[2].parameter;
-//         ASSERT_INT(7, val.length); // "\"Alice\""
-//         ASSERT_STRN("\"Alice\"", val.value, 7);
-//     }
-//
-//     // 3 age prop -> 4 number 30
-//     ASSERT_STR("on_object_property", test_call_stack.entries[3].function_name);
-//     {
-//         json_raw_string_t key = *(json_raw_string_t*) test_call_stack.entries[3].parameter;
-//         ASSERT_INT(5, key.length); // "\"age\""
-//         ASSERT_STRN("\"age\"", key.value, 5);
-//     }
-//     ASSERT_STR("on_number", test_call_stack.entries[4].function_name);
-//     ASSERT_DOUBLE(30.0, *(double*) test_call_stack.entries[4].parameter, 0.0);
-//
-//     // 5 married prop -> 6 bool false
-//     ASSERT_STR("on_object_property", test_call_stack.entries[5].function_name);
-//     {
-//         json_raw_string_t key = *(json_raw_string_t*) test_call_stack.entries[5].parameter;
-//         ASSERT_INT(9, key.length); // "\"married\""
-//         ASSERT_STRN("\"married\"", key.value, 9);
-//     }
-//     ASSERT_STR("on_bool", test_call_stack.entries[6].function_name);
-//     ASSERT_TRUE(*(bool*) test_call_stack.entries[6].parameter == false);
-//
-//     // 7 children prop -> array start, "Bob", null, array end
-//     ASSERT_STR("on_object_property", test_call_stack.entries[7].function_name);
-//     {
-//         json_raw_string_t key = *(json_raw_string_t*) test_call_stack.entries[7].parameter;
-//         ASSERT_INT(10, key.length); // "\"children\""
-//         ASSERT_STRN("\"children\"", key.value, 10);
-//     }
-//     ASSERT_STR("on_array_start", test_call_stack.entries[8].function_name);
-//     ASSERT_STR("on_string", test_call_stack.entries[9].function_name);
-//     {
-//         json_raw_string_t val = *(json_raw_string_t*) test_call_stack.entries[9].parameter;
-//         ASSERT_INT(5, val.length); // "\"Bob\""
-//         ASSERT_STRN("\"Bob\"", val.value, 5);
-//     }
-//     ASSERT_STR("on_null", test_call_stack.entries[10].function_name);
-//     ASSERT_STR("on_array_end", test_call_stack.entries[11].function_name);
-//
-//     // 12 address prop -> object start, city/"Paris", zip/75000, object end
-//     ASSERT_STR("on_object_property", test_call_stack.entries[12].function_name);
-//     {
-//         json_raw_string_t key = *(json_raw_string_t*) test_call_stack.entries[12].parameter;
-//         ASSERT_INT(9, key.length); // "\"address\""
-//         ASSERT_STRN("\"address\"", key.value, 9);
-//     }
-//     ASSERT_STR("on_object_start", test_call_stack.entries[13].function_name);
-//
-//     ASSERT_STR("on_object_property", test_call_stack.entries[14].function_name);
-//     {
-//         json_raw_string_t key = *(json_raw_string_t*) test_call_stack.entries[14].parameter;
-//         ASSERT_INT(6, key.length); // "\"city\""
-//         ASSERT_STRN("\"city\"", key.value, 6);
-//     }
-//     ASSERT_STR("on_string", test_call_stack.entries[15].function_name);
-//     {
-//         json_raw_string_t val = *(json_raw_string_t*) test_call_stack.entries[15].parameter;
-//         ASSERT_INT(7, val.length); // "\"Paris\""
-//         ASSERT_STRN("\"Paris\"", val.value, 7);
-//     }
-//
-//     ASSERT_STR("on_object_property", test_call_stack.entries[16].function_name);
-//     {
-//         json_raw_string_t key = *(json_raw_string_t*) test_call_stack.entries[16].parameter;
-//         ASSERT_INT(5, key.length); // "\"zip\""
-//         ASSERT_STRN("\"zip\"", key.value, 5);
-//     }
-//     ASSERT_STR("on_number", test_call_stack.entries[17].function_name);
-//     ASSERT_DOUBLE(75000.0, *(double*) test_call_stack.entries[17].parameter, 0.0);
-//
-//     ASSERT_STR("on_object_end", test_call_stack.entries[18].function_name);
-//
-//     // 19 scores prop -> array start, 12.5, -314.0, array end
-//     ASSERT_STR("on_object_property", test_call_stack.entries[19].function_name);
-//     {
-//         json_raw_string_t key = *(json_raw_string_t*) test_call_stack.entries[19].parameter;
-//         ASSERT_INT(8, key.length); // "\"scores\""
-//         ASSERT_STRN("\"scores\"", key.value, 8);
-//     }
-//     ASSERT_STR("on_array_start", test_call_stack.entries[20].function_name);
-//     ASSERT_STR("on_number", test_call_stack.entries[21].function_name);
-//     ASSERT_DOUBLE(12.5, *(double*) test_call_stack.entries[21].parameter, 0.0);
-//     ASSERT_STR("on_number", test_call_stack.entries[22].function_name);
-//     ASSERT_DOUBLE(-314.0, *(double*) test_call_stack.entries[22].parameter, 0.0);
-//     ASSERT_STR("on_array_end", test_call_stack.entries[23].function_name);
-//
-//     // final object end
-//     ASSERT_STR("on_object_end", test_call_stack.entries[24].function_name);
-// }
+
+TEST(parse_null) {
+    json_value_parser_result_t result = parse_json("null");
+    ASSERT_INT(JSON_PARSE_SUCCESS, result.result.code);
+    ASSERT_INT(JSON_NULL, result.value->type);
+}
+
+TEST(parse_boolean) {
+    {
+        json_value_parser_result_t result = parse_json("true");
+        ASSERT_INT(JSON_PARSE_SUCCESS, result.result.code);
+        ASSERT_INT(JSON_BOOL, result.value->type);
+        ASSERT_TRUE(result.value->bool_value == true);
+    }
+
+    {
+        json_value_parser_result_t result = parse_json("false");
+        ASSERT_INT(JSON_PARSE_SUCCESS, result.result.code);
+        ASSERT_INT(JSON_BOOL, result.value->type);
+        ASSERT_TRUE(result.value->bool_value == false);
+    }
+}
+
+TEST(parse_string) {
+    {
+        json_value_parser_result_t result = parse_json("\"Hello, World!\"");
+        ASSERT_INT(JSON_PARSE_SUCCESS, result.result.code);
+        ASSERT_INT(JSON_STRING, result.value->type);
+        ASSERT_INT(13, result.value->string_value.length);
+        ASSERT_STRN("Hello, World!", result.value->string_value.value, 13);
+    }
+
+    {
+        json_value_parser_result_t result = parse_json("\"\\n\\\\\\0\"");
+        ASSERT_INT(JSON_PARSE_SUCCESS, result.result.code);
+        ASSERT_INT(JSON_STRING, result.value->type);
+        ASSERT_INT(3, result.value->string_value.length);
+        ASSERT_STRN("\n\\\0", result.value->string_value.value, 3);
+    }
+}
+
+TEST(parse_array_simple) {
+    {
+        json_value_parser_result_t result = parse_json("[]");
+        ASSERT_INT(JSON_PARSE_SUCCESS, result.result.code);
+        ASSERT_INT(JSON_ARRAY, result.value->type);
+        ASSERT_INT(0, result.value->array_value.length);
+        ASSERT_NULL(result.value->array_value.head);
+        ASSERT_NULL(result.value->array_value.tail);
+    }
+
+    {
+        json_value_parser_result_t result = parse_json("[123, true]");
+        ASSERT_INT(JSON_PARSE_SUCCESS, result.result.code);
+        ASSERT_INT(JSON_ARRAY, result.value->type);
+        ASSERT_INT(2, result.value->array_value.length);
+
+        json_member_entry_t* first = result.value->array_value.head;
+        ASSERT_TRUE(first != nullptr);
+        ASSERT_INT(0, first->key_int);
+        ASSERT_NULL(first->key_str);
+        ASSERT_INT(JSON_NUMBER, first->value->type);
+        ASSERT_DOUBLE(123.0, first->value->number_value, 0.0);
+
+        json_member_entry_t* second = first->next;
+        ASSERT_TRUE(second != nullptr);
+        ASSERT_INT(1, second->key_int);
+        ASSERT_NULL(second->key_str);
+        ASSERT_INT(JSON_BOOL, second->value->type);
+        ASSERT_TRUE(second->value->bool_value == true);
+
+        ASSERT_NULL(second->next);
+        ASSERT_TRUE(second == result.value->array_value.tail);
+    }
+}
+
+TEST(parse_object_simple) {
+    {
+        json_value_parser_result_t result = parse_json("{}");
+        ASSERT_INT(JSON_PARSE_SUCCESS, result.result.code);
+        ASSERT_INT(JSON_OBJECT, result.value->type);
+        ASSERT_INT(0, result.value->object_value.length);
+        ASSERT_NULL(result.value->object_value.head);
+        ASSERT_NULL(result.value->object_value.tail);
+    }
+
+    {
+        json_value_parser_result_t result = parse_json("{\"foo\": 42}");
+        ASSERT_INT(JSON_PARSE_SUCCESS, result.result.code);
+        ASSERT_INT(JSON_OBJECT, result.value->type);
+        ASSERT_INT(1, result.value->object_value.length);
+        json_member_entry_t* property = result.value->object_value.head;
+        ASSERT_TRUE(property != nullptr);
+        ASSERT_INT(3, property->key_int);
+        ASSERT_STRN("foo", property->key_str, property->key_int);
+        ASSERT_INT(JSON_NUMBER, property->value->type);
+        ASSERT_DOUBLE(42.0, property->value->number_value, 0.0);
+        ASSERT_NULL(property->next);
+        ASSERT_TRUE(property == result.value->object_value.tail);
+    }
+}
+
+TEST(parse_complex_json) {
+    const char* json =
+        "{"
+            "\"name\": \"Alice\","
+            "\"age\": 30,"
+            "\"married\": false,"
+            "\"children\": [\"Bob\", null],"
+            "\"address\": {\"city\": \"Paris\", \"zip\": 75000},"
+            "\"scores\": [12.5, -314]"
+        "}";
+
+    json_value_parser_result_t result = parse_json(json);
+    ASSERT_INT(JSON_PARSE_SUCCESS, result.result.code);
+    ASSERT_INT(JSON_OBJECT, result.value->type);
+    ASSERT_INT(6, result.value->object_value.length);
+
+    json_member_entry_t* name_prop = result.value->object_value.head;
+    ASSERT_TRUE(name_prop != nullptr);
+    ASSERT_INT(4, name_prop->key_int);
+    ASSERT_STRN("name", name_prop->key_str, name_prop->key_int);
+    ASSERT_INT(JSON_STRING, name_prop->value->type);
+    ASSERT_INT(5, name_prop->value->string_value.length);
+    ASSERT_STRN("Alice", name_prop->value->string_value.value, name_prop->value->string_value.length);
+
+    json_member_entry_t* age_prop = name_prop->next;
+    ASSERT_TRUE(age_prop != nullptr);
+    ASSERT_INT(3, age_prop->key_int);
+    ASSERT_STRN("age", age_prop->key_str, age_prop->key_int);
+    ASSERT_INT(JSON_NUMBER, age_prop->value->type);
+    ASSERT_DOUBLE(30.0, age_prop->value->number_value, 0.0);
+
+    json_member_entry_t* married_prop = age_prop->next;
+    ASSERT_TRUE(married_prop != nullptr);
+    ASSERT_INT(7, married_prop->key_int);
+    ASSERT_STRN("married", married_prop->key_str, married_prop->key_int);
+    ASSERT_INT(JSON_BOOL, married_prop->value->type);
+    ASSERT_TRUE(married_prop->value->bool_value == false);
+
+    json_member_entry_t* children_prop = married_prop->next;
+    ASSERT_TRUE(children_prop != nullptr);
+    ASSERT_INT(8, children_prop->key_int);
+    ASSERT_STRN("children", children_prop->key_str, children_prop->key_int);
+    ASSERT_INT(JSON_ARRAY, children_prop->value->type);
+    ASSERT_INT(2, children_prop->value->array_value.length);
+    json_member_entry_t* first_child = children_prop->value->array_value.head;
+    ASSERT_TRUE(first_child != nullptr);
+    ASSERT_INT(0, first_child->key_int);
+    ASSERT_NULL(first_child->key_str);
+    ASSERT_INT(JSON_STRING, first_child->value->type);
+    ASSERT_INT(3, first_child->value->string_value.length);
+    ASSERT_STRN("Bob", first_child->value->string_value.value, first_child->value->string_value.length);
+    json_member_entry_t* second_child = first_child->next;
+    ASSERT_TRUE(second_child != nullptr);
+    ASSERT_INT(1, second_child->key_int);
+    ASSERT_NULL(second_child->key_str);
+    ASSERT_INT(JSON_NULL, second_child->value->type);
+    ASSERT_NULL(second_child->next);
+    ASSERT_TRUE(second_child == children_prop->value->array_value.tail);
+
+    json_member_entry_t* address_prop = children_prop->next;
+    ASSERT_TRUE(address_prop != nullptr);
+    ASSERT_INT(7, address_prop->key_int);
+    ASSERT_STRN("address", address_prop->key_str, address_prop->key_int);
+    ASSERT_INT(JSON_OBJECT, address_prop->value->type);
+    ASSERT_INT(2, address_prop->value->object_value.length);
+    json_member_entry_t* city_prop = address_prop->value->object_value.head;
+    ASSERT_TRUE(city_prop != nullptr);
+    ASSERT_INT(4, city_prop->key_int);
+    ASSERT_STRN("city", city_prop->key_str, city_prop->key_int);
+    ASSERT_INT(JSON_STRING, city_prop->value->type);
+    ASSERT_INT(5, city_prop->value->string_value.length);
+    ASSERT_STRN("Paris", city_prop->value->string_value.value, city_prop->value->string_value.length);
+    json_member_entry_t* zip_prop = city_prop->next;
+    ASSERT_TRUE(zip_prop != nullptr);
+    ASSERT_INT(3, zip_prop->key_int);
+    ASSERT_STRN("zip", zip_prop->key_str, zip_prop->key_int);
+    ASSERT_INT(JSON_NUMBER, zip_prop->value->type);
+    ASSERT_DOUBLE(75000.0, zip_prop->value->number_value, 0.0);
+    ASSERT_NULL(zip_prop->next);
+    ASSERT_TRUE(zip_prop == address_prop->value->object_value.tail);
+
+    json_member_entry_t* scores_prop = address_prop->next;
+    ASSERT_TRUE(scores_prop != nullptr);
+    ASSERT_INT(6, scores_prop->key_int);
+    ASSERT_STRN("scores", scores_prop->key_str, scores_prop->key_int);
+    ASSERT_INT(JSON_ARRAY, scores_prop->value->type);
+    ASSERT_INT(2, scores_prop->value->array_value.length);
+    json_member_entry_t* first_score = scores_prop->value->array_value.head;
+    ASSERT_TRUE(first_score != nullptr);
+    ASSERT_INT(0, first_score->key_int);
+    ASSERT_NULL(first_score->key_str);
+    ASSERT_INT(JSON_NUMBER, first_score->value->type);
+    ASSERT_DOUBLE(12.5, first_score->value->number_value, 0.0);
+    json_member_entry_t* second_score = first_score->next;
+    ASSERT_TRUE(second_score != nullptr);
+    ASSERT_INT(1, second_score->key_int);
+    ASSERT_NULL(second_score->key_str);
+    ASSERT_INT(JSON_NUMBER, second_score->value->type);
+    ASSERT_DOUBLE(-314.0, second_score->value->number_value, 0.0);
+    ASSERT_NULL(second_score->next);
+    ASSERT_TRUE(second_score == scores_prop->value->array_value.tail);
+
+    ASSERT_TRUE(result.value->object_value.tail == scores_prop);
+    ASSERT_NULL(scores_prop->next);
+}
 //
 // TEST(parse_error) {
 //     {

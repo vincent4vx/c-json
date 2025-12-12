@@ -66,6 +66,16 @@
         } \
     } while (0)
 
+
+#define ASSERT_NULL(expr) \
+    do { \
+        if (expr != nullptr) { \
+            fprintf(stderr, "[FAIL] Assertion failed: expecting null for %s, function %s, file %s, line %d.\n", #expr, __func__, __FILE__, __LINE__); \
+            *success = false; \
+            return; \
+        } \
+    } while (0)
+
 #define ASSERT_CHAR(expected, actual) \
     do { \
         const char expected_char = (char)(expected); \
@@ -101,7 +111,7 @@
 #define ASSERT_STRN(expected, actual, len) \
     do { \
         if (strncmp(expected, actual, len) != 0) { \
-            fprintf(stderr, "[FAIL] Assertion failed: expected %*s, but get %*s, function %s, file %s, line %d.\n", len, expected, len, actual, __func__, __FILE__, __LINE__); \
+            fprintf(stderr, "[FAIL] Assertion failed: expected %*s, but get %*s, function %s, file %s, line %d.\n", (int) len, expected, (int) len, actual, __func__, __FILE__, __LINE__); \
             *success = false; \
             return; \
         } \
