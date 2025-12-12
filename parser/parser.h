@@ -101,7 +101,6 @@ typedef enum: uint8_t {
     JSON_ERROR_CURSOR_EXCEED_INPUT,
     JSON_ERROR_EXPECTED_CONSTANT_LENGTH_TOO_LONG,
     JSON_ERROR_EMPTY_VALUE,
-    JSON_ERROR_INVALID_CONSTANT,
     JSON_ERROR_TOO_SMALL,
     JSON_ERROR_MISSING_CLOSING_CHARACTER,
     JSON_ERROR_OUT_OF_MEMORY,
@@ -203,9 +202,15 @@ json_parser_options_t json_default_parser_options(json_parser_options_t options)
 /**
  * Parse the JSON input string with the given length, invoking the provided handler callbacks.
  *
- * @param json The JSON input string to parse. Null-terminated is not required.
  * @param length The length of the JSON input string.
+ * @param json The JSON input string to parse. Null-terminated is not required.
  */
-json_parser_result_t json_parse(const char* json, size_t length, json_parser_handler_t* handler, json_parser_options_t options);
+json_parser_result_t json_parse(size_t length, const char json[length], json_parser_handler_t* handler, json_parser_options_t options);
+
+/**
+ * Get a human-readable error message for the given parser result.
+ * The result will be a static null-terminated string, do not free it.
+ */
+char* json_parse_error_message(json_parser_result_t result);
 
 #endif //JSON_PARSER_H

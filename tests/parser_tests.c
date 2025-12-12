@@ -135,13 +135,13 @@ static json_parser_handler_t init_handler() {
 static json_parser_result_t parse_json(const char* json) {
     json_parser_handler_t handler = init_handler();
 
-    return json_parse(json, strlen(json), &handler, (json_parser_options_t) {32, 1024, 1024 });
+    return json_parse(strlen(json), json, &handler, (json_parser_options_t) {32, 1024, 1024 });
 }
 
 static json_parser_result_t parse_json_no_handler(const char* json) {
     json_parser_handler_t handler = {};
 
-    return json_parse(json, strlen(json), &handler, (json_parser_options_t) {32, 1024, 1024 });
+    return json_parse(strlen(json), json, &handler, (json_parser_options_t) {32, 1024, 1024 });
 }
 
 TEST(parse_number) {
@@ -352,15 +352,17 @@ TEST(parse_error) {
         ASSERT_INT(JSON_ERROR_UNEXPECTED_CHARACTER, result.error);
         ASSERT_CHAR('"', result.extra);
         ASSERT_INT(1, result.position);
+        ASSERT_STR("Syntax error: Unexpected character expected '\"' at position 1 while parsing object property", json_parse_error_message(result));
     }
 
     {
         const json_parser_result_t result = parse_json("tr");
         ASSERT_INT(JSON_PARSE_ERROR_UNEXPECTED_END, result.code);
         ASSERT_INT(JSON_CONTEXT_BOOL, result.context);
-        ASSERT_INT(JSON_ERROR_INVALID_CONSTANT, result.error);
+        ASSERT_INT(JSON_ERROR_TOO_SMALL, result.error);
         ASSERT_INT(4, result.extra);
         ASSERT_INT(0, result.position);
+        ASSERT_STR("Unexpected end of input: Remaining input is too small (expected length 4) at position 0 while parsing boolean value", json_parse_error_message(result));
     }
 
     {
@@ -370,6 +372,7 @@ TEST(parse_error) {
         ASSERT_INT(JSON_ERROR_UNEXPECTED_CHARACTER, result.error);
         ASSERT_CHAR('u', result.extra);
         ASSERT_INT(2, result.position);
+        ASSERT_STR("Syntax error: Unexpected character expected 'u' at position 2 while parsing boolean value", json_parse_error_message(result));
     }
 
     {
@@ -379,6 +382,7 @@ TEST(parse_error) {
         ASSERT_INT(JSON_ERROR_UNEXPECTED_CHARACTER, result.error);
         ASSERT_CHAR(0, result.extra);
         ASSERT_INT(1, result.position);
+        ASSERT_STR("Syntax error: Unexpected character at position 1 while parsing array value", json_parse_error_message(result));
     }
 
     {
@@ -388,6 +392,7 @@ TEST(parse_error) {
         ASSERT_INT(JSON_ERROR_UNEXPECTED_CHARACTER, result.error);
         ASSERT_CHAR('"', result.extra);
         ASSERT_INT(1, result.position);
+        ASSERT_STR("Syntax error: Unexpected character expected '\"' at position 1 while parsing object property", json_parse_error_message(result));
     }
 
     {
@@ -397,6 +402,7 @@ TEST(parse_error) {
         ASSERT_INT(JSON_ERROR_UNEXPECTED_CHARACTER, result.error);
         ASSERT_CHAR(':', result.extra);
         ASSERT_INT(7, result.position);
+        ASSERT_STR("Syntax error: Unexpected character expected ':' at position 7 while parsing object value", json_parse_error_message(result));
     }
 
     {
@@ -406,6 +412,17 @@ TEST(parse_error) {
         ASSERT_INT(JSON_ERROR_UNEXPECTED_CHARACTER, result.error);
         ASSERT_CHAR(0, result.extra);
         ASSERT_INT(8, result.position);
+        ASSERT_STR("Syntax error: Unexpected character at position 8 ", json_parse_error_message(result));
+    }
+
+    {
+        const json_parser_result_t result = parse_json("  ");
+        ASSERT_INT(JSON_PARSE_ERROR_UNEXPECTED_END, result.code);
+        ASSERT_INT(JSON_CONTEXT_UNKNOWN, result.context);
+        ASSERT_INT(JSON_ERROR_EMPTY_VALUE, result.error);
+        ASSERT_CHAR(0, result.extra);
+        ASSERT_INT(2, result.position);
+        ASSERT_STR("Unexpected end of input: Value is empty or contains only whitespace at position 2 ", json_parse_error_message(result));
     }
 }
 
@@ -416,6 +433,7 @@ TEST(max_depth_exceeded) {
     ASSERT_INT(JSON_ERROR_UNKNOWN, result.error);
     ASSERT_CHAR(0, result.extra);
     ASSERT_INT(16, result.position);
+    ASSERT_STR("Maximum depth exceeded:  at position 16 while parsing array value", json_parse_error_message(result));
 }
 
 TEST(max_string_size_exceeded) {
@@ -431,6 +449,7 @@ TEST(max_string_size_exceeded) {
     ASSERT_INT(JSON_ERROR_UNKNOWN, result.error);
     ASSERT_CHAR(0, result.extra);
     ASSERT_INT(1024, result.position);
+    ASSERT_STR("Maximum string size exceeded:  at position 1024 while parsing string value", json_parse_error_message(result));
 }
 
 TEST(max_array_length_exceeded) {
@@ -449,6 +468,7 @@ TEST(max_array_length_exceeded) {
     ASSERT_INT(JSON_ERROR_UNKNOWN, result.error);
     ASSERT_CHAR(0, result.extra);
     ASSERT_INT(1026, result.position);
+    ASSERT_STR("Maximum structure size exceeded:  at position 1026 while parsing array value", json_parse_error_message(result));
 }
 
 TEST(max_struct_length_exceeded) {
@@ -470,4 +490,5 @@ TEST(max_struct_length_exceeded) {
     ASSERT_INT(JSON_ERROR_UNKNOWN, result.error);
     ASSERT_CHAR(0, result.extra);
     ASSERT_INT(2565, result.position);
+    ASSERT_STR("Maximum structure size exceeded:  at position 2565 while parsing object value", json_parse_error_message(result));
 }

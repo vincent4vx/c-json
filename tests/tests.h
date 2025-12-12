@@ -32,6 +32,20 @@
     } \
     static void test_func_##test_name(bool* success)
 
+#define TEST_SETUP \
+    static void test_setup(); \
+    __attribute__((constructor)) static void register_test_setup() { \
+        current_test_case.setup = test_setup; \
+    } \
+    static void test_setup()
+
+#define TEST_TEARDOWN \
+    static void test_teardown(); \
+    __attribute__((constructor)) static void register_test_teardown() { \
+        current_test_case.teardown = test_teardown; \
+    } \
+    static void test_teardown()
+
 #define ASSERT_TRUE(expr) \
     do { \
         if (!(expr)) { \
@@ -108,7 +122,8 @@ typedef struct {
     const char* name;
     test_entry_t tests[MAX_TESTS_PER_CASE];
     size_t count;
-    // @todo setup function?
+    void (*setup)(void);
+    void (*teardown)(void);
 } test_case_entry_t;
 
 typedef struct test_case_list_t {

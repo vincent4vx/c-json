@@ -1,6 +1,7 @@
 #include "parser.h"
 
 #include <stdio.h>
+#include <string.h>
 
 typedef struct {
     const char* json;
@@ -32,7 +33,7 @@ json_parser_options_t json_default_parser_options(const json_parser_options_t op
     };
 }
 
-json_parser_result_t json_parse(const char* json, const size_t length, json_parser_handler_t* handler, json_parser_options_t options) {
+json_parser_result_t json_parse(const size_t length, const char json[length], json_parser_handler_t* handler, json_parser_options_t options) {
     options = json_default_parser_options(options);
 
     if (json == nullptr || length == 0 || handler == nullptr) {
@@ -180,7 +181,7 @@ static json_parser_result_t json_parse_constant(json_stream_parser_state_t* stat
     }
 
     if (state->length - state->position < expected_value_length) {
-        return (json_parser_result_t) { JSON_PARSE_ERROR_UNEXPECTED_END, context, JSON_ERROR_INVALID_CONSTANT, expected_value_length, state->position };
+        return (json_parser_result_t) { JSON_PARSE_ERROR_UNEXPECTED_END, context, JSON_ERROR_TOO_SMALL, expected_value_length, state->position };
     }
 
     for (int i = 0; i < expected_value_length; ++i) {
@@ -584,4 +585,180 @@ static json_parser_result_t json_parse_array(json_stream_parser_state_t* state, 
     }
 
     return state->handler->on_array_end(state->handler);
+}
+
+static char p_error_message_buffer[128];
+
+char* json_parse_error_message(json_parser_result_t result) {
+    constexpr size_t buffer_size = sizeof(p_error_message_buffer);
+    memset(p_error_message_buffer, 0, buffer_size);
+
+    char* prefix = "";
+    char* error = "";
+    char* context = "";
+    char* message_format = nullptr;
+
+    switch (result.code) {
+        case JSON_PARSE_SUCCESS:
+            break;
+
+        case JSON_PARSE_ERROR_INVALID_SYNTAX:
+            prefix = "Syntax error";
+            break;
+
+        case JSON_PARSE_ERROR_UNEXPECTED_END:
+            prefix = "Unexpected end of input";
+            break;
+
+        case JSON_PARSE_ERROR_MAX_DEPTH:
+            prefix = "Maximum depth exceeded";
+            break;
+
+        case JSON_PARSE_ERROR_MAX_STRING_SIZE:
+            prefix = "Maximum string size exceeded";
+            break;
+
+        case JSON_PARSE_ERROR_MAX_STRUCT_SIZE:
+            prefix = "Maximum structure size exceeded";
+            break;
+
+        case JSON_PARSE_HANDLER_ERROR:
+            prefix = "Handler error";
+            break;
+
+        case JSON_PARSE_CONFIG_ERROR:
+            prefix = "Internal error";
+            break;
+
+        default:
+            prefix = "Unknown error";
+            break;
+    }
+
+    switch (result.error) {
+        case JSON_ERROR_INVALID_CODE:
+            error = "Invalid error code returned by parser";
+            message_format = "%s: %s (%hhu) at position %zu %s";
+            break;
+
+        case JSON_ERROR_NULL_POINTER:
+            error = "Null pointer or empty buffer provided to parser";
+            break;
+
+        case JSON_ERROR_INVALID_MAX_DEPTH:
+            error = "Invalid maximum depth configuration";
+            break;
+
+        case JSON_ERROR_INVALID_MAX_STRING_SIZE:
+            error = "Invalid maximum string size configuration";
+            break;
+
+        case JSON_ERROR_INVALID_MAX_STRUCT_SIZE:
+            error = "Invalid maximum structure size configuration";
+            break;
+
+        case JSON_ERROR_UNEXPECTED_CHARACTER:
+            error = "Unexpected character";
+            break;
+
+        case JSON_ERROR_CURSOR_NOT_ADVANCE:
+            error = "Parser cursor did not advance after parsing value";
+            break;
+
+        case JSON_ERROR_CURSOR_EXCEED_INPUT:
+            error = "Parser cursor exceeded input length after parsing value";
+            break;
+
+        case JSON_ERROR_EXPECTED_CONSTANT_LENGTH_TOO_LONG:
+            error = "Expected constant length is too long";
+            break;
+
+        case JSON_ERROR_EMPTY_VALUE:
+            error = "Value is empty or contains only whitespace";
+            break;
+
+        case JSON_ERROR_TOO_SMALL:
+            error = "Remaining input is too small";
+
+            if (result.extra != 0) {
+                message_format = "%s: %s (expected length %hhu) at position %zu %s";
+            }
+            break;
+
+        case JSON_ERROR_MISSING_CLOSING_CHARACTER:
+            error = "Missing closing character";
+            break;
+
+        case JSON_ERROR_OUT_OF_MEMORY:
+            error = "No more memory available";
+            break;
+
+        case JSON_ERROR_NOT_SEQUENTIAL_KEYS:
+            error = "Array keys are not sequential integers";
+            break;
+
+        case JSON_ERROR_PROPERTY_ALREADY_SET:
+            error = "Object property already has a value assigned";
+            break;
+
+        case JSON_ERROR_INVALID_TYPE:
+            error = "Invalid type for current operation";
+            break;
+
+        case JSON_ERROR_STACK_OVERFLOW:
+            error = "Stack is full, cannot push new value";
+            break;
+
+        case JSON_ERROR_STACK_EMPTY:
+            error = "Stack is empty, cannot pop value";
+            break;
+
+        default:
+            // no extra info
+    }
+
+    switch (result.context) {
+        case JSON_CONTEXT_NULL:
+            context = "while parsing null value";
+            break;
+
+        case JSON_CONTEXT_BOOL:
+            context = "while parsing boolean value";
+            break;
+
+        case JSON_CONTEXT_NUMBER:
+            context = "while parsing number value";
+            break;
+
+        case JSON_CONTEXT_STRING:
+            context = "while parsing string value";
+            break;
+
+        case JSON_CONTEXT_ARRAY:
+            context = "while parsing array value";
+            break;
+
+        case JSON_CONTEXT_OBJECT:
+            context = "while parsing object value";
+            break;
+
+        case JSON_CONTEXT_OBJECT_PROPERTY:
+            context = "while parsing object property";
+            break;
+
+        default:
+            // no extra info
+    }
+
+    if (message_format == nullptr) {
+        if (result.extra != 0) {
+            snprintf(p_error_message_buffer, buffer_size, "%s: %s expected '%c' at position %zu %s", prefix, error, result.extra, result.position, context);
+        } else {
+            snprintf(p_error_message_buffer, buffer_size, "%s: %s at position %zu %s", prefix, error, result.position, context);
+        }
+    } else {
+        snprintf(p_error_message_buffer, buffer_size, message_format, prefix, error, result.extra, result.position, context);
+    }
+
+    return p_error_message_buffer;
 }

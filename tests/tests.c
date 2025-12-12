@@ -36,6 +36,10 @@ int test_run_all() {
                 break; // No more tests in this case
             }
 
+            if (test_case->setup != nullptr) {
+                test_case->setup();
+            }
+
             printf("[RUN ] test %s...\n", test.name);
 
             bool current_success = true;
@@ -46,6 +50,10 @@ int test_run_all() {
                 ++success_count;
             } else {
                 ++failure_count;
+            }
+
+            if (test_case->teardown != nullptr) {
+                test_case->teardown();
             }
         }
     }

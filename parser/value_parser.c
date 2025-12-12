@@ -10,10 +10,10 @@ typedef struct {
     json_value_t* root;
     size_t stack_size;
     size_t stack_used;
-    json_value_t* stack[];
-} json_value_parser_handler;
+    json_value_t** stack;
+} json_value_parser_handler_t;
 
-static json_parser_result_t json_value_parser_populate_top(json_value_parser_handler* handler, json_value_t* top, json_value_t* value) {
+static json_parser_result_t json_value_parser_populate_top(json_value_parser_handler_t* handler, json_value_t* top, json_value_t* value) {
     if (top == nullptr) {
         return (json_parser_result_t) { JSON_PARSE_CONFIG_ERROR, JSON_CONTEXT_UNKNOWN, JSON_ERROR_NULL_POINTER };
     }
@@ -60,7 +60,7 @@ static json_parser_result_t json_value_parser_populate_top(json_value_parser_han
     return json_create_success_result();
 }
 
-static json_parser_result_t json_value_parser_push(json_value_parser_handler* handler, json_value_t* value, json_parse_context_t context) {
+static json_parser_result_t json_value_parser_push(json_value_parser_handler_t* handler, json_value_t* value, json_parse_context_t context) {
     if (value == nullptr) {
         return (json_parser_result_t) { JSON_PARSE_CONFIG_ERROR, context, JSON_ERROR_NULL_POINTER };
     }
@@ -89,7 +89,7 @@ static json_parser_result_t json_value_parser_push(json_value_parser_handler* ha
     return json_create_success_result();
 }
 
-static json_parser_result_t json_value_parser_pop(json_value_parser_handler* handler, const json_parse_context_t context) {
+static json_parser_result_t json_value_parser_pop(json_value_parser_handler_t* handler, const json_parse_context_t context) {
     if (handler->stack_used < 1) {
         return (json_parser_result_t) { JSON_PARSE_HANDLER_ERROR, context, JSON_ERROR_STACK_EMPTY };
     }
@@ -103,7 +103,7 @@ static json_parser_result_t json_value_parser_pop(json_value_parser_handler* han
 }
 
 static json_parser_result_t json_value_parser_handler_on_null(json_parser_handler_t* self) {
-    json_value_parser_handler* handler = (json_value_parser_handler*) self;
+    json_value_parser_handler_t* handler = (json_value_parser_handler_t*) self;
     json_value_t* null_value = json_create_null_value(handler->arena);
 
     if (null_value == nullptr) {
@@ -114,7 +114,7 @@ static json_parser_result_t json_value_parser_handler_on_null(json_parser_handle
 }
 
 static json_parser_result_t json_value_parser_handler_on_bool(json_parser_handler_t* self, const bool value) {
-    json_value_parser_handler* handler = (json_value_parser_handler*) self;
+    json_value_parser_handler_t* handler = (json_value_parser_handler_t*) self;
     json_value_t* bool_value = json_create_bool_value(handler->arena, value);
 
     if (bool_value == nullptr) {
@@ -125,7 +125,7 @@ static json_parser_result_t json_value_parser_handler_on_bool(json_parser_handle
 }
 
 static json_parser_result_t json_value_parser_handler_on_number(json_parser_handler_t* self, const double value) {
-    json_value_parser_handler* handler = (json_value_parser_handler*) self;
+    json_value_parser_handler_t* handler = (json_value_parser_handler_t*) self;
     json_value_t* number_value = json_create_number_value(handler->arena, value);
 
     if (number_value == nullptr) {
@@ -136,7 +136,7 @@ static json_parser_result_t json_value_parser_handler_on_number(json_parser_hand
 }
 
 static json_parser_result_t json_value_parser_handler_on_string(json_parser_handler_t* self, const json_raw_string_t value) {
-    json_value_parser_handler* handler = (json_value_parser_handler*) self;
+    json_value_parser_handler_t* handler = (json_value_parser_handler_t*) self;
     json_value_t* string_value = json_create_string_value(handler->arena, value.value, value.length);
 
     if (string_value == nullptr) {
@@ -147,7 +147,7 @@ static json_parser_result_t json_value_parser_handler_on_string(json_parser_hand
 }
 
 static json_parser_result_t json_value_parser_handler_on_array_start(json_parser_handler_t* self) {
-    json_value_parser_handler* handler = (json_value_parser_handler*) self;
+    json_value_parser_handler_t* handler = (json_value_parser_handler_t*) self;
     json_value_t* new_array = json_create_empty_array(handler->arena);
 
     if (new_array == nullptr) {
@@ -158,12 +158,12 @@ static json_parser_result_t json_value_parser_handler_on_array_start(json_parser
 }
 
 static json_parser_result_t json_value_parser_handler_on_array_end(json_parser_handler_t* self) {
-    json_value_parser_handler* handler = (json_value_parser_handler*) self;
+    json_value_parser_handler_t* handler = (json_value_parser_handler_t*) self;
     return json_value_parser_pop(handler, JSON_CONTEXT_ARRAY);
 }
 
 static json_parser_result_t json_value_parser_handler_on_object_start(json_parser_handler_t* self) {
-    json_value_parser_handler* handler = (json_value_parser_handler*) self;
+    json_value_parser_handler_t* handler = (json_value_parser_handler_t*) self;
     json_value_t* new_object = json_create_empty_object(handler->arena);
 
     if (new_object == nullptr) {
@@ -174,7 +174,7 @@ static json_parser_result_t json_value_parser_handler_on_object_start(json_parse
 }
 
 static json_parser_result_t json_value_parser_handler_on_object_property(json_parser_handler_t* self, json_raw_string_t key) {
-    json_value_parser_handler* handler = (json_value_parser_handler*) self;
+    json_value_parser_handler_t* handler = (json_value_parser_handler_t*) self;
     json_member_entry_t* new_property = json_create_object_member(handler->arena, key.value, key.length);
 
     if (new_property == nullptr) {
@@ -207,41 +207,38 @@ static json_parser_result_t json_value_parser_handler_on_object_property(json_pa
 }
 
 static json_parser_result_t json_value_parser_handler_on_object_end(json_parser_handler_t* self) {
-    json_value_parser_handler* handler = (json_value_parser_handler*) self;
+    json_value_parser_handler_t* handler = (json_value_parser_handler_t*) self;
     return json_value_parser_pop(handler, JSON_CONTEXT_OBJECT);
 }
 
-static void json_value_parser_handler_init(json_value_parser_handler* handler, json_arena_t* arena, const size_t stack_size) {
-    handler->callbacks.on_null = json_value_parser_handler_on_null;
-    handler->callbacks.on_bool = json_value_parser_handler_on_bool;
-    handler->callbacks.on_number = json_value_parser_handler_on_number;
-    handler->callbacks.on_string = json_value_parser_handler_on_string;
-    handler->callbacks.on_array_start = json_value_parser_handler_on_array_start;
-    handler->callbacks.on_array_end = json_value_parser_handler_on_array_end;
-    handler->callbacks.on_object_start = json_value_parser_handler_on_object_start;
-    handler->callbacks.on_object_property = json_value_parser_handler_on_object_property;
-    handler->callbacks.on_object_end = json_value_parser_handler_on_object_end;
+const static json_parser_handler_t p_callbacks = {
+    .on_null = json_value_parser_handler_on_null,
+    .on_bool = json_value_parser_handler_on_bool,
+    .on_number = json_value_parser_handler_on_number,
+    .on_string = json_value_parser_handler_on_string,
+    .on_array_start = json_value_parser_handler_on_array_start,
+    .on_array_end = json_value_parser_handler_on_array_end,
+    .on_object_start = json_value_parser_handler_on_object_start,
+    .on_object_property = json_value_parser_handler_on_object_property,
+    .on_object_end = json_value_parser_handler_on_object_end,
+};
 
-    handler->arena = arena;
-    handler->stack_size = stack_size;
-    handler->stack_used = 0;
-    handler->root = nullptr;
-}
+json_value_parser_result_t json_parse_value(const size_t length, const char json[length], json_arena_t* arena, const size_t stack_size, json_value_t* stack[stack_size], json_parser_options_t options) {
+    json_value_parser_handler_t handler = {
+        .callbacks = p_callbacks,
+        .arena = arena,
+        .stack_size = stack_size,
+        .stack_used = 0,
+        .stack = stack,
+        .root = nullptr,
+    };
 
-json_value_parser_result_t json_parse_value(const char* json, size_t length, json_arena_t* arena, json_parser_options_t options) {
-    options = json_default_parser_options(options);
+    const json_parser_result_t result = json_parse(length, json, &handler.callbacks, options);
 
-    // @todo faire mieux
-    char buffer[sizeof(json_value_parser_handler) + sizeof(json_value_t*) * options.max_depth];
-    json_value_parser_handler* handler = (json_value_parser_handler*) buffer;
-    json_value_parser_handler_init(handler, arena, options.max_depth);
-
-    const json_parser_result_t result = json_parse(json, length, &handler->callbacks, options);
-
-    if (handler->root != nullptr) {
+    if (handler.root != nullptr) {
         return (json_value_parser_result_t) {
             .result = result,
-            .value = handler->root,
+            .value = handler.root,
         };
     }
 
@@ -253,4 +250,12 @@ json_value_parser_result_t json_parse_value(const char* json, size_t length, jso
         },
         .value = nullptr,
     };
+}
+
+json_value_parser_result_t json_parse_value_defaults(const size_t length, const char json[length], json_arena_t* arena) {
+    constexpr size_t stack_size = 32;
+    const json_parser_options_t options = json_default_parser_options((json_parser_options_t) { .max_depth = stack_size });
+    json_value_t* stack[stack_size];
+
+    return json_parse_value(length, json, arena, stack_size, stack, options);
 }
